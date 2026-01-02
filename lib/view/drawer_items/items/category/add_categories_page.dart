@@ -1,52 +1,67 @@
+import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/services/category_services.dart';
-import 'package:billova/utils/widgets/custom_snackbar.dart';
-import 'package:billova/view/drawer_items/items/category/all_categories_page.dart';
-import 'package:flutter/material.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
-class AddCategoryPage extends StatefulWidget {
-  const AddCategoryPage({super.key});
+class AddEditCategoryPage extends StatefulWidget {
+  final Category? category;
+  const AddEditCategoryPage({super.key, this.category});
 
   @override
-  State<AddCategoryPage> createState() => _AddCategoryPageState();
+  State<AddEditCategoryPage> createState() => _AddEditCategoryPageState();
 }
 
-class _AddCategoryPageState extends State<AddCategoryPage> {
-  final TextEditingController _nameCtr = TextEditingController();
+class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
+  late final TextEditingController _nameCtr;
   final _formKey = GlobalKey<FormState>();
 
   bool _isActive = true;
   bool _loading = false;
 
+  bool get _isEdit => widget.category != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtr = TextEditingController(text: widget.category?.name ?? '');
+    _isActive = widget.category?.isActive ?? true;
+  }
+
   Future<void> _submit() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
 
+    FocusScope.of(context).unfocus();
     setState(() => _loading = true);
 
     try {
-      await CategoryService.createCategory(
-        name: _nameCtr.text.trim(),
-        isActive: _isActive,
-      );
+      if (_isEdit) {
+        await CategoryService.updateCategory(
+          id: widget.category!.id,
+          name: _nameCtr.text.trim(),
+          isActive: _isActive,
+        );
+      } else {
+        await CategoryService.createCategory(
+          name: _nameCtr.text.trim(),
+          isActive: _isActive,
+        );
+      }
 
       if (!mounted) return;
-
-      CustomSnackBar.show(
-        color: AppColors().browcolor,
-        context: context,
-        message: 'Category added successfully',
-      );
-
-      Navigator.pop(context, true); // 🔥 important for refresh
+      Navigator.pop(context, _isEdit ? 'updated' : 'added');
     } catch (e) {
+      if (!mounted) return;
       CustomSnackBar.show(
-        color: AppColors().browcolor,
         context: context,
-        message: '${e.toString().replaceAll('Exception:', '').trim()}',
+        color: AppColors().browcolor,
+        message: e.toString().replaceAll('Exception:', '').trim(),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -63,10 +78,9 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
         leading: CustomAppBarBack(),
         backgroundColor: primary,
         foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Add Category',
-          style: TextStyle(fontWeight: FontWeight.w600),
+        title: Text(
+          _isEdit ? 'Edit Category' : 'Add Category',
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       body: CurveScreen(
@@ -76,9 +90,6 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
             key: _formKey,
             child: Column(
               children: [
-                sh20,
-
-                /// CATEGORY NAME
                 TextFormField(
                   controller: _nameCtr,
                   textCapitalization: TextCapitalization.words,
@@ -105,7 +116,6 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
 
                 sh20,
 
-                /// ACTIVE TOGGLE
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -126,13 +136,15 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
                           ),
                         ),
                       ),
-                      Switch(
-                        value: _isActive,
-                        activeColor: primary,
-                        onChanged: (v) {
-                          setState(() => _isActive = v);
-                        },
+                      Transform.scale(
+                        scale: 0.8,
+                        child: CupertinoSwitch(
+                          value: _isActive,
+                          activeColor: primary,
+                          onChanged: (v) => setState(() => _isActive = v),
+                        ),
                       ),
+                      const SizedBox(width: 6),
                       Text(
                         _isActive ? 'Active' : 'Inactive',
                         style: TextStyle(
@@ -144,43 +156,18 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
                   ),
                 ),
 
-                SizedBox(height: 20),
-
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: SizedBox(
-                    height: 40,
-                    width: 160,
-                    child: CustomButtons(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AllCategoriesPage(),
-                          ),
-                        );
-                      },
-                      text: Text('All Categories'),
-                    ),
-                  ),
-                ),
-
                 const Spacer(),
 
-                /// SAVE BUTTON
                 SizedBox(
                   height: 46,
                   width: double.infinity,
                   child: _loading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors().browcolor,
-                            // strokeWidth: 2,
-                          ),
-                        )
+                      ? Center(child: CircularProgressIndicator(color: primary))
                       : CustomButtons(
-                          onPressed: _loading ? null : _submit,
-                          text: const Text('Save Category'),
+                          onPressed: _submit,
+                          text: Text(
+                            _isEdit ? 'Update Category' : 'Save Category',
+                          ),
                         ),
                 ),
 

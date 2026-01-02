@@ -2,10 +2,9 @@ import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
-import 'package:billova/view/drawer_items/items/category/add_categories_page.dart';
 import 'package:billova/view/drawer_items/items/add_page.dart';
+import 'package:billova/view/drawer_items/items/category/all_categories_page.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_navigation/get_navigation.dart';
 import 'package:get/get_navigation/src/extension_navigation.dart';
@@ -20,7 +19,7 @@ class ItemsPage extends StatefulWidget {
 class _ItemsPageState extends State<ItemsPage> {
   List<Map<String, dynamic>> list = [
     {"icon": Icons.list, "title": "Items", "page": AddPage()},
-    {"icon": Icons.copy, "title": "Categories", "page": AddCategoryPage()},
+    {"icon": Icons.copy, "title": "Categories", "page": AllCategoriesPage()},
     {"icon": Icons.list, "title": "Discount", "page": AddPage()},
   ];
 
