@@ -1,16 +1,16 @@
 import 'dart:convert';
-import 'package:billova/models/model/category_models/category_model.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
-import 'package:billova/utils/local_Storage/token_storage.dart';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:billova/utils/local_Storage/token_storage.dart';
+import 'package:billova/utils/exceptions/network_exception.dart';
+import 'package:billova/utils/local_Storage/category_local_store.dart';
+import '../model/category_models/category_model.dart';
 
 class CategoryService {
   static const String _baseUrl =
       'https://billova-backend.onrender.com/api/category';
 
-  // ─────────────────────────────────────────────
-  // HEADERS
-  // ─────────────────────────────────────────────
+  // ───────── HEADERS ─────────
   static Future<Map<String, String>> _headers() async {
     final token = await TokenStorage.getToken();
     return {
@@ -19,133 +19,150 @@ class CategoryService {
     };
   }
 
-  // ─────────────────────────────────────────────
-  // CREATE CATEGORY (ONLINE FIRST + LOCAL SAVE)
-  // ─────────────────────────────────────────────
-  static Future<void> createCategory({
-    required String name,
-    required bool isActive,
-  }) async {
-    try {
-      final res = await http.post(
-        Uri.parse(_baseUrl),
-        headers: await _headers(),
-        body: jsonEncode({'name': name, 'is_active': isActive}),
-      );
-
-      final decoded = jsonDecode(res.body);
-
-      if ((res.statusCode == 200 || res.statusCode == 201) &&
-          decoded is Map &&
-          decoded['success'] == true) {
-        final data = decoded['data'];
-
-        if (data != null) {
-          final category = Category.fromJson(data);
-          await CategoryLocalStore.add(category);
-        }
-        return;
-      }
-
-      throw Exception(decoded['message'] ?? 'Failed to create category');
-    } catch (e) {
-      throw Exception(e.toString());
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // GET CATEGORIES (API → LOCAL SYNC → FALLBACK)
-  // ─────────────────────────────────────────────
-  static Future<List<Category>> getCategories({
+  // ───────── FETCH ─────────
+  static Future<List<Category>> fetchCategories({
     bool? isActive,
     bool pagination = false,
-    int page = 1,
-    int limit = 10,
+    int? page,
+    int? limit,
   }) async {
     try {
-      final params = <String, String>{'pagination': pagination.toString()};
-
-      if (pagination) {
-        params['page'] = page.toString();
-        params['limit'] = limit.toString();
-      }
+      final params = <String, String>{};
 
       if (isActive != null) {
         params['is_active'] = isActive.toString();
       }
 
+      params['pagination'] = pagination.toString();
+      if (page != null) params['page'] = page.toString();
+      if (limit != null) params['limit'] = limit.toString();
+
       final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
+      print('CategoryService FETCH: $uri');
       final res = await http.get(uri, headers: await _headers());
+      print('CategoryService FETCH Res: ${res.statusCode} ${res.body}');
 
       if (res.statusCode != 200) {
-        throw Exception();
+        throw Exception('Fetch failed');
       }
 
       final decoded = jsonDecode(res.body);
-      final data = decoded['data'];
-      if (data == null) return [];
 
-      final List list = pagination ? (data['docs'] ?? []) : data;
+      // Handle response structure depending on pagination
+      List list;
+      if (decoded['data'] is Map && decoded['data'].containsKey('data')) {
+        // Paginated response usually likely { data: { data: [], total: ... } } or similar
+        // Adjust based on actual API response structure for pagination
+        list = decoded['data']['data'] ?? [];
+      } else if (decoded['data'] is List) {
+        list = decoded['data'];
+      } else if (decoded['categories'] is Map &&
+          decoded['categories'].containsKey('data')) {
+        list = decoded['categories']['data'] ?? [];
+      } else if (decoded['categories'] is List) {
+        list = decoded['categories'];
+      } else {
+        list = [];
+      }
+
       final categories = list.map((e) => Category.fromJson(e)).toList();
 
-      /// 🔥 SAVE SERVER STATE LOCALLY
-      await CategoryLocalStore.saveAll(categories);
+      // Save to local store if fetching all (or specific logic)
+      // Usually we cache the "all" list or "active" list.
+      // For simplicity, if not paginated, we update cache.
+      if (!pagination) {
+        await CategoryLocalStore.saveAll(categories);
+      }
 
       return categories;
-    } catch (_) {
-      /// 🔁 OFFLINE FALLBACK
+    } on SocketException {
+      print('CategoryService FETCH: No Internet');
+      // Offline fallback
       return await CategoryLocalStore.loadAll();
+    } on http.ClientException catch (e) {
+      print('CategoryService FETCH ClientException: $e');
+      throw NetworkException('Unable to reach server');
+    } catch (e) {
+      print('CategoryService FETCH Error: $e');
+      rethrow;
     }
   }
 
-  // ─────────────────────────────────────────────
-  // FETCH ACTIVE CATEGORIES
-  // ─────────────────────────────────────────────
-  static Future<List<Category>> fetchActiveCategories() async {
+  // ───────── GET BY ID ─────────
+  static Future<Category?> getCategoryById(String id) async {
     try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl?is_active=true&pagination=false'),
-        headers: await _headers(),
-      );
-
-      if (res.statusCode != 200) throw Exception();
-
-      final decoded = jsonDecode(res.body);
-      final List list = decoded['data'] ?? [];
-
-      final categories = list.map((e) => Category.fromJson(e)).toList();
-
-      await CategoryLocalStore.saveAll(categories);
-      return categories;
-    } catch (_) {
-      final local = await CategoryLocalStore.loadAll();
-      return local.where((c) => c.isActive).toList();
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // DELETE CATEGORY
-  // ─────────────────────────────────────────────
-  static Future<void> deleteCategory(String id) async {
-    try {
-      final res = await http.delete(
-        Uri.parse('$_baseUrl/$id'),
-        headers: await _headers(),
-      );
-
+      final uri = Uri.parse('$_baseUrl?id=$id');
+      final res = await http.get(uri, headers: await _headers());
       if (res.statusCode != 200) {
-        throw Exception('Delete failed');
+        return null; // Or throw
+      }
+      final decoded = jsonDecode(res.body);
+      // Assuming valid response has data
+      if (decoded['data'] != null &&
+          decoded['data'] is List &&
+          (decoded['data'] as List).isNotEmpty) {
+        return Category.fromJson(decoded['data'][0]);
+      }
+      return null;
+    } on SocketException {
+      final local = await CategoryLocalStore.loadAll();
+      try {
+        return local.firstWhere((e) => e.id == id);
+      } catch (_) {
+        return null;
+      }
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  // ───────── CREATE ─────────
+  static Future<Category> createCategory({
+    required String name,
+    required bool isActive,
+  }) async {
+    try {
+      print('CategoryService CREATE: $name, $isActive');
+      final res = await http.post(
+        Uri.parse(_baseUrl),
+        headers: await _headers(),
+        body: jsonEncode({'name': name, 'is_active': isActive}),
+      );
+      print('CategoryService CREATE Res: ${res.statusCode} ${res.body}');
+
+      if (res.statusCode != 200 && res.statusCode != 201) {
+        throw Exception('Create failed: ${res.statusCode} - ${res.body}');
       }
 
-      await CategoryLocalStore.delete(id);
+      final decoded = jsonDecode(res.body);
+      final catData = decoded['data'] ?? decoded['category'];
+
+      if (catData == null) {
+        throw Exception('Server returned no data');
+      }
+
+      final newCategory = Category.fromJson(catData);
+
+      // Update local store
+      await CategoryLocalStore.add(newCategory);
+
+      return newCategory;
+    } on SocketException {
+      print('CategoryService CREATE: No Internet');
+      throw NetworkException('No internet connection');
+    } on http.ClientException catch (e) {
+      print('CategoryService CREATE ClientException: $e');
+      throw NetworkException('Unable to reach server');
     } catch (e) {
-      throw Exception('Delete category error: $e');
+      print('CategoryService CREATE Error: $e');
+      if (e is! NetworkException) {
+        throw Exception('Failed to create category: $e');
+      }
+      rethrow;
     }
   }
 
-  // ─────────────────────────────────────────────
-  // UPDATE CATEGORY
-  // ─────────────────────────────────────────────
+  // ───────── UPDATE ─────────
   static Future<void> updateCategory({
     required String id,
     required String name,
@@ -161,17 +178,28 @@ class CategoryService {
       if (res.statusCode != 200) {
         throw Exception('Update failed');
       }
+    } on SocketException {
+      throw NetworkException('No internet connection');
+    } on http.ClientException {
+      throw NetworkException('Unable to reach server');
+    }
+  }
 
-      final updated = Category(
-        id: id,
-        name: name,
-        isActive: isActive,
-        createdAt: DateTime.now(), // server may override
+  // ───────── DELETE ─────────
+  static Future<void> deleteCategory(String id) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/$id'),
+        headers: await _headers(),
       );
 
-      await CategoryLocalStore.update(updated);
-    } catch (e) {
-      throw Exception('Update category error: $e');
+      if (res.statusCode != 200) {
+        throw Exception('Delete failed');
+      }
+    } on SocketException {
+      throw NetworkException('No internet connection');
+    } on http.ClientException {
+      throw NetworkException('Unable to reach server');
     }
   }
 }

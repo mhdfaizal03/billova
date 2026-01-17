@@ -2,8 +2,8 @@ import 'package:billova/utils/constants/colors.dart';
 import 'package:flutter/material.dart';
 
 class CurveScreen extends StatelessWidget {
-  Widget? child;
-  CurveScreen({super.key, this.child});
+  final Widget? child;
+  const CurveScreen({super.key, this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class CurveScreen extends StatelessWidget {
         width: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [AppColors.creamcolor.withOpacity(.9), Colors.white],
+            colors: [AppColors().creamcolor.withOpacity(.9), Colors.white],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),

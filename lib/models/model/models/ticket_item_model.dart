@@ -21,4 +21,18 @@ class TicketItem {
       quantity: quantity,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'productName': productName,
+    'variantName': variantName,
+    'price': price,
+    'quantity': quantity,
+  };
+
+  factory TicketItem.fromJson(Map<String, dynamic> json) => TicketItem(
+    productName: json['productName'],
+    variantName: json['variantName'],
+    price: json['price'],
+    quantity: json['quantity'],
+  );
 }

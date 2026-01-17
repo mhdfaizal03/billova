@@ -39,6 +39,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       ResetPasswordRequest(email: emailCtr.text.trim()),
     );
 
+    if (!mounted) return;
+
     setState(() => isLoading = false);
 
     if (response.success) {

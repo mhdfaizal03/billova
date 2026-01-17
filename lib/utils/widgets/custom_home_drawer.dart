@@ -1,5 +1,6 @@
 // lib/utils/widgets/custom_home_drawer.dart
 import 'dart:ui';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:billova/main.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
@@ -11,10 +12,9 @@ import 'package:billova/view/drawer_items/items_page.dart';
 import 'package:billova/view/drawer_items/reciepts_page.dart';
 import 'package:billova/view/drawer_items/sales_page.dart';
 import 'package:billova/view/drawer_items/settings_page.dart';
+import 'package:billova/view/drawer_items/support_page.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get_navigation/src/extension_navigation.dart';
-import 'package:get/get_navigation/src/routes/transitions_type.dart';
-import 'package:get/instance_manager.dart';
+import 'package:get/get.dart';
 
 Drawer buildGlassDrawer(BuildContext context) {
   final colors = AppColors();
@@ -44,128 +44,133 @@ Drawer buildGlassDrawer(BuildContext context) {
                   Flex(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     direction: Axis.vertical,
-                    children: [
-                      sh30,
-                      Container(
-                        margin: const EdgeInsets.only(right: 10),
-                        decoration: BoxDecoration(
-                          color: colors.creamcolor.withOpacity(.7),
-                          borderRadius: BorderRadius.only(
-                            bottomRight: Radius.circular(15),
-                            topRight: Radius.circular(15),
-                          ),
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            radius: 28,
-                            backgroundColor: colors.browcolor,
-                            child: const Icon(
-                              Icons.person,
-                              color: Colors.white,
-                            ),
-                          ),
-                          title: Text(
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            "MS Restaurant",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: const Text("POS 1"),
-                        ),
-                      ),
-                      sh20,
-                      _drawerSection("MANAGEMENT"),
+                    children:
+                        [
+                              sh30,
+                              Container(
+                                margin: const EdgeInsets.only(right: 10),
+                                decoration: BoxDecoration(
+                                  color: colors.creamcolor.withOpacity(.7),
+                                  borderRadius: BorderRadius.only(
+                                    bottomRight: Radius.circular(15),
+                                    topRight: Radius.circular(15),
+                                  ),
+                                ),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    radius: 28,
+                                    backgroundColor: colors.browcolor,
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    "MS Restaurant",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: const Text("POS 1"),
+                                ),
+                              ),
+                              sh20,
+                              _drawerSection("MANAGEMENT"),
 
-                      _glassTile(
-                        Icons.inventory_2_rounded,
-                        () {
-                          Get.back();
-                          Get.to(
-                            RecieptsPage(),
-                            transition: Transition.rightToLeft,
-                          );
-                        },
-                        "Reciepts",
-                        colors,
-                      ),
-                      _glassTile(
-                        Icons.category_rounded,
-                        () {
-                          Get.back();
-                          Get.to(
-                            ItemsPage(),
-                            transition: Transition.rightToLeft,
-                          );
-                        },
-                        "Items",
-                        colors,
-                      ),
-                      _glassTile(
-                        Icons.tune_rounded,
-                        () {
-                          Get.back();
-                          Get.to(
-                            SettingsPage(),
-                            transition: Transition.rightToLeft,
-                          );
-                        },
-                        "Settings",
-                        colors,
-                      ),
+                              _glassTile(
+                                Icons.bar_chart_rounded,
+                                () {
+                                  Get.back();
+                                  Get.to(const SalesPage());
+                                },
+                                "Sales Report",
+                                colors,
+                              ),
+                              _glassTile(
+                                Icons.inventory_2_rounded,
+                                () {
+                                  Get.back();
+                                  Get.to(const RecieptsPage());
+                                },
+                                "Receipts",
+                                colors,
+                              ),
+                              _glassTile(
+                                Icons.category_rounded,
+                                () {
+                                  Get.back();
+                                  Get.to(const ItemsPage());
+                                },
+                                "Items",
+                                colors,
+                              ),
+                              _glassTile(
+                                Icons.tune_rounded,
+                                () {
+                                  Get.back();
+                                  Get.to(const SettingsPage());
+                                },
+                                "Settings",
+                                colors,
+                              ),
 
-                      const SizedBox(height: 10),
-                    ],
+                              const SizedBox(height: 10),
+                            ]
+                            .animate(interval: 50.ms)
+                            .fadeIn(duration: 300.ms)
+                            .slideX(begin: -0.1),
                   ),
                   Flex(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     direction: Axis.vertical,
-                    children: [
-                      _drawerSection("SETTINGS"),
+                    children:
+                        [
+                              _drawerSection("DASHBOARD"),
 
-                      _glassTile(
-                        Icons.person_rounded,
-                        () {
-                          Get.back();
-                          Get.to(
-                            SalesPage(),
-                            transition: Transition.rightToLeft,
-                          );
-                        },
-                        "Suppot",
-                        colors,
-                      ),
-                      _glassTile(
-                        Icons.logout_rounded,
-                        () {
-                          Get.back();
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              return CustomDialogBox(
-                                title: "Logout",
-                                content:
-                                    "Are you sure you want to logout from the app?",
-                                saveText: "Logout",
-                                onSave: () async {
-                                  await TokenStorage.clearAll();
+                              _glassTile(
+                                Icons.support_agent_rounded,
+                                () {
+                                  Get.back();
+                                  Get.to(const SupportPage());
+                                },
+                                "Support",
+                                colors,
+                              ),
+                              _glassTile(
+                                Icons.logout_rounded,
+                                () {
+                                  Get.back();
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) {
+                                      return CustomDialogBox(
+                                        title: "Logout",
+                                        content:
+                                            "Are you sure you want to logout from the app?",
+                                        saveText: "Logout",
+                                        onSave: () async {
+                                          await TokenStorage.clearAll();
 
-                                  Get.offAll(
-                                    SelectAuthPage(),
-                                    transition: Transition.fadeIn,
+                                          Get.offAll(
+                                            SelectAuthPage(),
+                                            transition: Transition.fadeIn,
+                                          );
+                                        },
+                                      );
+                                    },
                                   );
                                 },
-                              );
-                            },
-                          );
-                        },
-                        "Logout",
-                        colors,
-                        isLogout: true,
-                      ),
-                    ],
+                                "Logout",
+                                colors,
+                                isLogout: true,
+                              ),
+                            ]
+                            .animate(interval: 50.ms, delay: 200.ms)
+                            .fadeIn(duration: 300.ms)
+                            .slideX(begin: -0.1),
                   ),
                   // Align(
                   //   alignment: Alignment.bottomCenter,

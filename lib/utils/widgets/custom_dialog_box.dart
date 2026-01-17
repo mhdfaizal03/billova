@@ -2,11 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class CustomDialogBox extends StatelessWidget {
-  String title;
-  String content;
-  String saveText;
-  Function() onSave;
-  CustomDialogBox({
+  final String title;
+  final String content;
+  final String saveText;
+  final Function() onSave;
+  const CustomDialogBox({
     super.key,
     required this.title,
     required this.content,

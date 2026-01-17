@@ -4,6 +4,7 @@ class TokenStorage {
   static const _tokenKey = 'auth_token';
   static const _storeKey = 'selected_store';
 
+  // ───────── SAVE ─────────
   static Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
@@ -14,7 +15,7 @@ class TokenStorage {
     await prefs.setString(_storeKey, storeId);
   }
 
-  /// ✅ ADD THIS
+  // ───────── GET ─────────
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
@@ -25,8 +26,16 @@ class TokenStorage {
     return prefs.getString(_storeKey);
   }
 
+  // ───────── HELPERS ─────────
+  static Future<bool> isLoggedIn() async {
+    final token = await getToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  // ───────── CLEAR ─────────
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_storeKey);
   }
 }

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 
 class CustomBackButton extends StatelessWidget {
-  Function()? onTap;
-  CustomBackButton({super.key, this.onTap});
+  final Function()? onTap;
+  const CustomBackButton({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -28,15 +27,15 @@ class CustomBackButton extends StatelessWidget {
 }
 
 class CustomAppBarBack extends StatelessWidget {
-  Function()? onTap;
-  CustomAppBarBack({super.key, this.onTap});
+  final Function()? onTap;
+  const CustomAppBarBack({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(10),
       child: GestureDetector(
-        onTap: onTap ?? () => Get.back(),
+        onTap: onTap ?? () => Get.back(canPop: true),
         child: CircleAvatar(child: Icon(Icons.keyboard_arrow_left)),
       ),
     );

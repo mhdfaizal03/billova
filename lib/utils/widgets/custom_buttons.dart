@@ -1,11 +1,10 @@
-import 'package:billova/main.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:flutter/material.dart';
 
 class CustomButtons extends StatelessWidget {
-  Function()? onPressed;
-  Widget text;
-  CustomButtons({super.key, required this.onPressed, required this.text});
+  final Function()? onPressed;
+  final Widget text;
+  const CustomButtons({super.key, required this.onPressed, required this.text});
 
   @override
   Widget build(BuildContext context) {

@@ -6,7 +6,7 @@ import 'package:billova/models/services/auth_service.dart';
 import 'package:billova/utils/widgets/custom_field.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/view/auth/confirm_otp_page.dart';
-import 'package:billova/view/privacy/t&c.dart';
+import 'package:billova/view/privacy/terms_and_conditions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:billova/utils/constants/colors.dart';

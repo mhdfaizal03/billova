@@ -1,13 +1,19 @@
 import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/services/category_services.dart';
 import 'package:billova/utils/constants/colors.dart';
+import 'package:billova/utils/constants/scope.dart';
 import 'package:billova/utils/constants/sizes.dart';
+import 'package:billova/utils/exceptions/network_exception.dart';
+import 'package:billova/utils/local_Storage/category_local_store.dart';
+import 'package:billova/utils/networks/internet_helper.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get/utils.dart';
 
 class AddEditCategoryPage extends StatefulWidget {
   final Category? category;
@@ -37,31 +43,37 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
     if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
 
-    FocusScope.of(context).unfocus();
     setState(() => _loading = true);
+
+    final name = _nameCtr.text.trim();
 
     try {
       if (_isEdit) {
         await CategoryService.updateCategory(
           id: widget.category!.id,
-          name: _nameCtr.text.trim(),
+          name: name,
           isActive: _isActive,
         );
-      } else {
-        await CategoryService.createCategory(
-          name: _nameCtr.text.trim(),
-          isActive: _isActive,
-        );
+
+        Get.back(result: 'updated');
+        return;
       }
 
-      if (!mounted) return;
-      Navigator.pop(context, _isEdit ? 'updated' : 'added');
-    } catch (e) {
-      if (!mounted) return;
+      await CategoryService.createCategory(name: name, isActive: _isActive);
+
+      Get.back(result: 'added');
+    } on NetworkException catch (e) {
+      // 🔔 SHOW ERROR ONLY FOR ADD / UPDATE
       CustomSnackBar.show(
         context: context,
-        color: AppColors().browcolor,
-        message: e.toString().replaceAll('Exception:', '').trim(),
+        color: Colors.red,
+        message: e.message,
+      );
+    } catch (e) {
+      CustomSnackBar.show(
+        context: context,
+        color: Colors.red,
+        message: e.toString(),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -164,7 +176,7 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
                   child: _loading
                       ? Center(child: CircularProgressIndicator(color: primary))
                       : CustomButtons(
-                          onPressed: _submit,
+                          onPressed: _loading ? null : _submit,
                           text: Text(
                             _isEdit ? 'Update Category' : 'Save Category',
                           ),

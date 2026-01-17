@@ -1,4 +1,9 @@
+import 'dart:io';
 import 'package:billova/models/model/models/ticket_item_model.dart';
+import 'package:billova/models/model/models/order_model.dart';
+import 'package:billova/utils/local_Storage/sales_local_store.dart';
+import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/utils/networks/printer_helper.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
@@ -6,6 +11,7 @@ import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:billova/view/home/home_screen.dart';
 
 class TicketPage extends StatefulWidget {
   final List<TicketItem> items;
@@ -67,7 +73,6 @@ class _TicketPageState extends State<TicketPage> {
     );
 
     if (confirm == true) {
-      // Clear items & notify Home
       Get.back(result: <TicketItem>[]);
     }
   }
@@ -89,229 +94,408 @@ class _TicketPageState extends State<TicketPage> {
         ),
         actions: [
           TextButton(
-            child: Text('Cancel Order', style: TextStyle(color: Colors.white)),
             onPressed: _confirmCancelOrder,
+            child: const Text(
+              'Cancel Order',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
       body: CurveScreen(
-        child: Column(
-          children: [
-            /// ITEM LIST
-            Expanded(
-              child: items.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No items added',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.only(top: 8),
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => const Divider(
-                        height: 10,
-                        endIndent: 20,
-                        indent: 20,
-                        thickness: 0.8,
-                      ),
-                      itemBuilder: (_, i) {
-                        final item = items[i];
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Column(
+              children: [
+                Expanded(
+                  child: items.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No items added',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(top: 8),
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) => const Divider(
+                            height: 10,
+                            endIndent: 20,
+                            indent: 20,
+                            thickness: 0.8,
+                          ),
+                          itemBuilder: (_, i) {
+                            final item = items[i];
 
-                        return Dismissible(
-                          key: ValueKey(
-                            '${item.productName}_${item.variantName}_${item.price}',
-                          ),
-                          direction:
-                              DismissDirection.endToStart, // swipe left only
-                          confirmDismiss: (_) async {
-                            return await _showDeleteConfirm(context, item);
-                          },
-                          background: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            alignment: Alignment.centerRight,
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(.9),
-                              borderRadius: BorderRadius.circular(0),
-                            ),
-                            child: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                          ),
-                          onDismissed: (_) {
-                            setState(() {
-                              items.removeAt(i);
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                /// NAME + VARIANT
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.variantName != null
-                                            ? '${item.productName} (${item.variantName})'
-                                            : item.productName,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
+                            return Dismissible(
+                              key: ValueKey(
+                                '${item.productName}_${item.variantName}_${item.price}',
+                              ),
+                              direction: DismissDirection.endToStart,
+                              confirmDismiss: (_) async {
+                                return await _showDeleteConfirm(context, item);
+                              },
+                              background: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                alignment: Alignment.centerRight,
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(.9),
+                                  borderRadius: BorderRadius.circular(0),
+                                ),
+                                child: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.white,
+                                  size: 26,
+                                ),
+                              ),
+                              onDismissed: (_) {
+                                setState(() {
+                                  items.removeAt(i);
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.variantName != null
+                                                ? '${item.productName} (${item.variantName})'
+                                                : item.productName,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '₹${item.price}',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: primary.withOpacity(.3),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _qtyButton(
+                                            icon: Icons.remove,
+                                            onTap: () => _decreaseQty(i),
+                                          ),
+                                          QtyEditable(
+                                            value: item.quantity,
+                                            onChanged: (v) {
+                                              setState(() => item.quantity = v);
+                                            },
+                                          ),
+                                          _qtyButton(
+                                            icon: Icons.add,
+                                            onTap: () => _increaseQty(i),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    sw10,
+                                    SizedBox(
+                                      width: 60,
+                                      child: Text(
+                                        '₹${item.total}',
+                                        textAlign: TextAlign.end,
                                         style: const TextStyle(
                                           fontSize: 15,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '₹${item.price}',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                /// QTY CONTROLLER
-                                Container(
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: primary.withOpacity(.3),
                                     ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      _qtyButton(
-                                        icon: Icons.remove,
-                                        onTap: () => _decreaseQty(i),
-                                      ),
-                                      QtyEditable(
-                                        value: item.quantity,
-                                        onChanged: (v) {
-                                          setState(() => item.quantity = v);
-                                        },
-                                      ),
-                                      _qtyButton(
-                                        icon: Icons.add,
-                                        onTap: () => _increaseQty(i),
-                                      ),
-                                    ],
-                                  ),
+                                  ],
                                 ),
-
-                                sw10,
-
-                                /// ITEM TOTAL
-                                SizedBox(
-                                  width: 60,
-                                  child: Text(
-                                    '₹${item.total}',
-                                    textAlign: TextAlign.end,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    color: AppColors().creamcolor,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, -3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'TOTAL',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        );
-                      },
-                    ),
-            ),
-
-            /// BOTTOM BAR
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              decoration: BoxDecoration(
-                color: AppColors().creamcolor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
+                          Text(
+                            '₹$totalAmount',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      sh10,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 44,
+                              child: CustomButtons(
+                                onPressed: items.isEmpty
+                                    ? null
+                                    : () {
+                                        Get.back(result: items);
+                                      },
+                                text: const Text('Save'),
+                              ),
+                            ),
+                          ),
+                          sw10,
+                          Expanded(
+                            child: SizedBox(
+                              height: 44,
+                              child: CustomButtons(
+                                onPressed: items.isEmpty
+                                    ? null
+                                    : _showReceiptPreview,
+                                text: const Text('Charge'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReceiptPreview() async {
+    final store = await SettingsLocalStore.loadStoreDetails();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.all(20),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (store['logo'] != null && store['logo']!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Image.file(
+                    File(store['logo']!),
+                    height: 60,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              Text(
+                store['name']!.isEmpty ? "BILLOVA POS" : store['name']!,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  /// TOTAL ROW
-                  Row(
+              if (store['address']!.isNotEmpty) Text(store['address']!),
+              if (store['contact']!.isNotEmpty)
+                Text("Tel: ${store['contact']}"),
+              if (store['gst']!.isNotEmpty) Text("GST: ${store['gst']}"),
+              const Divider(thickness: 1, height: 30),
+              ...items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'TOTAL',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          "${item.quantity} x ${item.productName}${item.variantName != null ? ' (${item.variantName})' : ''}",
+                          style: const TextStyle(fontSize: 14),
                         ),
                       ),
                       Text(
-                        '₹$totalAmount',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        "₹${item.total}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  sh10,
-
-                  /// BUTTONS
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 44,
-                          child: CustomButtons(
-                            onPressed: items.isEmpty
-                                ? null
-                                : () {
-                                    Get.back(result: items);
-                                  },
-                            text: const Text('Save'),
-                          ),
-                        ),
-                      ),
-                      sw10,
-                      Expanded(
-                        child: SizedBox(
-                          height: 44,
-                          child: CustomButtons(
-                            onPressed: items.isEmpty ? null : () {},
-                            text: const Text('Charge'),
-                          ),
-                        ),
-                      ),
-                    ],
+                ),
+              ),
+              const Divider(thickness: 1, height: 30),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "GRAND TOTAL",
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
+                  Text(
+                    "₹$totalAmount",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+              if (store['footer']!.isNotEmpty)
+                Text(
+                  store['footer']!,
+                  style: const TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: CustomButtons(
+                  text: const Text("Print & Pay"),
+                  onPressed: () async {
+                    Navigator.pop(context);
+
+                    final order = OrderModel(
+                      id: "ORD-${DateTime.now().millisecondsSinceEpoch}",
+                      items: items,
+                      total: totalAmount,
+                      dateTime: DateTime.now(),
+                    );
+
+                    await _showPrinterSelection(order);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showPrinterSelection(OrderModel order) async {
+    final settings = await SettingsLocalStore.loadPrinterSettings();
+    final btDevice = await SettingsLocalStore.loadBluetoothDevice();
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Select Printer",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            sh20,
+            ListTile(
+              leading: const Icon(Icons.wifi, color: Colors.blue),
+              title: const Text("Wifi / Network Printer"),
+              subtitle: Text(settings['ip'] ?? "Not Configured"),
+              onTap: () async {
+                Get.back();
+                await _processPayment(order, isNetwork: true);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.bluetooth, color: Colors.blue),
+              title: const Text("Bluetooth Printer"),
+              subtitle: Text(
+                btDevice != null ? "Paired Device" : "Not Configured",
+              ),
+              onTap: () async {
+                Get.back();
+                await _processPayment(order, isNetwork: false);
+              },
+            ),
+            sh20,
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _processPayment(
+    OrderModel order, {
+    required bool isNetwork,
+  }) async {
+    bool printed = false;
+    if (isNetwork) {
+      printed = await PrinterHelper.printViaNetwork(order);
+    } else {
+      printed = await PrinterHelper.printViaBluetooth(order);
+    }
+
+    await SalesLocalStore.saveOrder(order);
+
+    Get.snackbar(
+      printed ? "Payment Success" : "Payment Success (Print Failed)",
+      printed
+          ? "Receipt printed and saved"
+          : "Order saved but printer not found",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: printed ? Colors.green : Colors.orange,
+      colorText: Colors.white,
+    );
+    Get.offAll(() => HomeScreen()); // Navigate back to home and clear ticket
   }
 
   Future<bool> _showDeleteConfirm(BuildContext context, TicketItem item) async {
@@ -359,7 +543,6 @@ class _TicketPageState extends State<TicketPage> {
 
   @override
   void dispose() {
-    Get.back(result: items);
     super.dispose();
   }
 }
@@ -428,16 +611,12 @@ class _QtyEditableState extends State<QtyEditable> {
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
               ),
-
-              /// 🔥 LIVE UPDATE
               onChanged: (value) {
                 final v = int.tryParse(value);
                 if (v != null && v > 0) {
                   widget.onChanged(v);
                 }
               },
-
-              /// ENTER KEY
               onSubmitted: (_) => _submit(),
             )
           : GestureDetector(

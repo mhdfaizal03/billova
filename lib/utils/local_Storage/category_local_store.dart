@@ -1,78 +1,70 @@
 import 'dart:convert';
-import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:billova/models/model/category_models/category_model.dart';
+import 'package:billova/utils/local_Storage/token_storage.dart';
 
 class CategoryLocalStore {
-  static const String _key = 'cached_categories';
-
-  /// SAVE FULL LIST (REPLACE CACHE)
-  static Future<void> saveAll(List<Category> categories) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final jsonList = categories
-        .map(
-          (c) => {
-            '_id': c.id,
-            'name': c.name,
-            'is_active': c.isActive,
-            'createdAt': c.createdAt.toIso8601String(),
-          },
-        )
-        .toList();
-
-    await prefs.setString(_key, jsonEncode(jsonList));
+  /// 🔑 STABLE KEY (STORE-BASED)
+  static Future<String> _key() async {
+    final storeId = await TokenStorage.getSelectedStore();
+    return 'cached_categories_${storeId ?? 'default'}';
   }
 
-  /// LOAD FULL LIST
+  // ───────── LOAD ─────────
   static Future<List<Category>> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(await _key());
 
     if (raw == null || raw.isEmpty) return [];
 
     try {
-      final List decoded = jsonDecode(raw);
-      return decoded.map((e) => Category.fromJson(e)).toList();
+      final List list = jsonDecode(raw);
+      return list.map((e) => Category.fromJson(e)).toList();
     } catch (_) {
       return [];
     }
   }
 
-  /// ADD OR REPLACE CATEGORY
-  static Future<void> add(Category category) async {
+  // ───────── SAVE ─────────
+  static Future<void> saveAll(List<Category> categories) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      await _key(),
+      jsonEncode(categories.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  // ───────── ADD / UPDATE ─────────
+  static Future<void> add(Category c) async {
     final list = await loadAll();
-
-    final index = list.indexWhere((e) => e.id == category.id);
-    if (index == -1) {
-      list.add(category);
-    } else {
-      list[index] = category;
-    }
-
+    list.removeWhere((e) => e.id == c.id);
+    list.add(c);
     await saveAll(list);
   }
 
-  /// UPDATE CATEGORY
-  static Future<void> update(Category category) async {
-    final list = await loadAll();
-    final index = list.indexWhere((e) => e.id == category.id);
+  static Future<void> update(Category c) => add(c);
 
-    if (index != -1) {
-      list[index] = category;
-      await saveAll(list);
-    }
-  }
-
-  /// DELETE CATEGORY
+  // ───────── DELETE ─────────
   static Future<void> delete(String id) async {
     final list = await loadAll();
     list.removeWhere((e) => e.id == id);
     await saveAll(list);
   }
 
-  /// CLEAR CACHE
+  // ───────── REPLACE TEMP ID ─────────
+  static Future<void> replaceId({
+    required String oldId,
+    required Category newCategory,
+  }) async {
+    final list = await loadAll();
+    list.removeWhere((e) => e.id == oldId);
+    list.add(newCategory);
+    await saveAll(list);
+  }
+
+  // ───────── CLEAR ON LOGOUT ─────────
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    await prefs.remove(await _key());
   }
 }

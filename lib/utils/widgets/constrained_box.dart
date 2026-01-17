@@ -2,8 +2,8 @@ import 'package:billova/main.dart';
 import 'package:flutter/material.dart';
 
 class ConstrainBox extends StatelessWidget {
-  Widget child;
-  ConstrainBox({super.key, required this.child});
+  final Widget child;
+  const ConstrainBox({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {

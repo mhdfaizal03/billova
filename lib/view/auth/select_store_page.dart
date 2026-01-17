@@ -7,10 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../models/model/auth_models/auth_response.dart';
 
-class SelectStorePage extends StatelessWidget {
+class SelectStorePage extends StatefulWidget {
   final List<StoreModel> stores;
-
-  /// 🔐 REQUIRED to re-login
   final String email;
   final String password;
 
@@ -20,6 +18,53 @@ class SelectStorePage extends StatelessWidget {
     required this.email,
     required this.password,
   });
+
+  @override
+  State<SelectStorePage> createState() => _SelectStorePageState();
+}
+
+class _SelectStorePageState extends State<SelectStorePage> {
+  int? _loadingIndex; // which store is loading
+
+  Future<void> _selectStore(StoreModel store, int index) async {
+    if (_loadingIndex != null) return; // 🔒 prevent double tap
+
+    setState(() => _loadingIndex = index);
+
+    try {
+      /// 🔐 LOGIN WITH STORE ID
+      final AuthResponse res = await AuthService.multipleLogin(
+        LoginRequest(
+          email: widget.email,
+          password: widget.password,
+          storeId: store.id,
+        ),
+      );
+
+      if (res.token != null && res.token!.isNotEmpty) {
+        /// ✅ SAVE TOKEN
+        await TokenStorage.saveToken(res.token!);
+
+        /// ✅ SAVE STORE
+        await TokenStorage.saveSelectedStore(store.id);
+
+        /// 🚀 GO TO HOME
+        Get.offAll(
+          () => const HomeScreen(),
+          transition: Transition.fadeIn,
+          duration: const Duration(milliseconds: 350),
+        );
+      } else {
+        throw Exception('Invalid login response');
+      }
+    } catch (e) {
+      setState(() => _loadingIndex = null);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text(e.toString())),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,47 +77,34 @@ class SelectStorePage extends StatelessWidget {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: stores.length,
+        itemCount: widget.stores.length,
         itemBuilder: (_, index) {
-          final store = stores[index];
+          final store = widget.stores[index];
+          final isLoading = _loadingIndex == index;
 
-          return Card(
-            child: ListTile(
-              title: Text(store.name),
-              trailing: const Icon(Icons.arrow_forward_ios),
-              onTap: () async {
-                try {
-                  /// 🔐 LOGIN AGAIN WITH STORE ID
-                  final AuthResponse res = await AuthService.multipleLogin(
-                    LoginRequest(
-                      email: email,
-                      password: password,
-                      storeId: store.id,
-                    ),
-                  );
-
-                  if (res.token != null && res.token!.isNotEmpty) {
-                    /// ✅ SAVE NEW TOKEN
-                    await TokenStorage.saveToken(res.token!);
-
-                    /// ✅ SAVE SELECTED STORE
-                    await TokenStorage.saveSelectedStore(store.id);
-
-                    /// 🚀 GO HOME
-                    Get.offAll(
-                      () => const HomeScreen(),
-                      transition: Transition.rightToLeftWithFade,
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: Colors.red,
-                      content: Text(e.toString()),
-                    ),
-                  );
-                }
-              },
+          return AnimatedOpacity(
+            duration: const Duration(milliseconds: 250),
+            opacity: _loadingIndex == null || isLoading ? 1 : 0.5,
+            child: Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                enabled: !isLoading,
+                title: Text(
+                  store.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                trailing: isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.arrow_forward_ios, size: 18),
+                onTap: isLoading ? null : () => _selectStore(store, index),
+              ),
             ),
           );
         },

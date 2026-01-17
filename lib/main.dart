@@ -6,8 +6,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 late Size mq;
 
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
   runApp(const MyApp());
 }
 
@@ -17,15 +20,25 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    mq = MediaQuery.of(context).size;
     return GetMaterialApp(
+      navigatorObservers: [routeObserver],
       debugShowCheckedModeBanner: false,
       title: 'Billova',
       theme: ThemeData(
         textTheme: GoogleFonts.aBeeZeeTextTheme(),
         scaffoldBackgroundColor: AppColors().creamcolor,
-        colorScheme: .fromSeed(seedColor: AppColors().creamcolor),
+        colorScheme: ColorScheme.fromSeed(seedColor: AppColors().creamcolor),
       ),
+      defaultTransition: Transition.cupertino,
+      transitionDuration: const Duration(milliseconds: 400),
+      builder: (context, child) {
+        mq = MediaQuery.of(context).size;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: child,
+        );
+      },
       home: SplashScreen(),
     );
   }

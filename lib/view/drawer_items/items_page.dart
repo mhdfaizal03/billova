@@ -2,12 +2,12 @@ import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
-import 'package:billova/view/drawer_items/items/add_page.dart';
 import 'package:billova/view/drawer_items/items/category/all_categories_page.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/get_navigation.dart';
-import 'package:get/get_navigation/src/extension_navigation.dart';
+import 'package:get/get.dart';
+
+import 'package:billova/view/drawer_items/items/tax/all_taxes_page.dart';
+import 'package:billova/view/drawer_items/items/product/all_products_page.dart';
 
 class ItemsPage extends StatefulWidget {
   const ItemsPage({super.key});
@@ -18,9 +18,21 @@ class ItemsPage extends StatefulWidget {
 
 class _ItemsPageState extends State<ItemsPage> {
   List<Map<String, dynamic>> list = [
-    {"icon": Icons.list, "title": "Items", "page": AddPage()},
-    {"icon": Icons.copy, "title": "Categories", "page": AllCategoriesPage()},
-    {"icon": Icons.list, "title": "Discount", "page": AddPage()},
+    {
+      "icon": Icons.shopping_bag,
+      "title": "Products",
+      "page": const AllProductsPage(),
+    },
+    {
+      "icon": Icons.category,
+      "title": "Categories",
+      "page": const AllCategoriesPage(),
+    },
+    {
+      "icon": Icons.attach_money,
+      "title": "Taxes",
+      "page": const AllTaxesPage(),
+    },
   ];
 
   @override

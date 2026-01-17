@@ -35,7 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   get: ^4.7.3
-  hugeicons: ^1.1.2
+  hugeicons: ^1.1.5
   font_awesome_flutter: ^10.12.0
   google_fonts: ^6.3.2
   amicons: ^1.0.1
@@ -44,13 +44,24 @@ dependencies:
   shared_preferences: ^2.5.4
   connectivity_plus: ^7.0.0
   app_settings: ^7.0.0
-  
+  image_picker: ^1.2.1
+  flutter_animate: ^4.5.2
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
+  intl: ^0.20.2
+  esc_pos_utils_plus: ^2.0.3
+  esc_pos_printer_plus: ^0.1.1
+  print_bluetooth_thermal: ^1.1.9
+  permission_handler: ^12.0.1
+  url_launcher: ^6.3.1
+  image: ^4.3.0
   
 
 dev_dependencies:
-  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true

@@ -1,3 +1,4 @@
+import 'package:billova/main.dart';
 import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/services/category_services.dart';
 import 'package:billova/utils/constants/colors.dart';
@@ -7,6 +8,7 @@ import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/view/drawer_items/items/category/add_categories_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:billova/utils/widgets/responsive_helper.dart';
 
 class AllCategoriesPage extends StatefulWidget {
   const AllCategoriesPage({super.key});
@@ -15,7 +17,7 @@ class AllCategoriesPage extends StatefulWidget {
   State<AllCategoriesPage> createState() => _AllCategoriesPageState();
 }
 
-class _AllCategoriesPageState extends State<AllCategoriesPage> {
+class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
   final TextEditingController _searchCtr = TextEditingController();
 
   List<Category> _categories = [];
@@ -30,7 +32,19 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
+  }
+
+  @override
+  void didPopNext() {
+    _loadCategories(); // reload when coming back
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _searchCtr.dispose();
     super.dispose();
   }
@@ -40,20 +54,17 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
   // ─────────────────────────────────────────────
   Future<void> _loadCategories() async {
     setState(() => _loading = true);
+
     try {
-      final data = await CategoryService.getCategories(pagination: false);
+      final list = await CategoryService.fetchCategories();
       if (!mounted) return;
 
       setState(() {
-        _categories = data;
-        _filtered = data;
+        _categories = list;
+        _filtered = list;
       });
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _categories = [];
-        _filtered = [];
-      });
+      // ❌ No snackbar here (as per requirement)
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,14 +85,12 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
   // ─────────────────────────────────────────────
   // DELETE
   // ─────────────────────────────────────────────
+
   Future<void> _confirmDelete(Category c) async {
     final ok =
         await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
             title: const Text('Delete category?'),
             content: Text(c.name),
             actions: [
@@ -91,10 +100,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: Colors.red),
-                ),
+                child: const Text('Delete'),
               ),
             ],
           ),
@@ -103,29 +109,40 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
 
     if (!ok) return;
 
-    await CategoryService.deleteCategory(c.id);
-    setState(() {
-      _categories.removeWhere((e) => e.id == c.id);
-      _applySearch();
-    });
+    try {
+      await CategoryService.deleteCategory(c.id);
+
+      setState(() {
+        _categories.removeWhere((e) => e.id == c.id);
+        _filtered.removeWhere((e) => e.id == c.id);
+      });
+    } catch (e) {
+      // ❌ No snackbar here (only show in Add/Edit)
+    }
   }
 
   // ─────────────────────────────────────────────
   // TOGGLE ACTIVE
   // ─────────────────────────────────────────────
   Future<void> _toggleStatus(Category c) async {
-    final old = c.isActive;
-
-    setState(() => c.isActive = !c.isActive);
+    final updated = c.copyWith(isActive: !c.isActive);
 
     try {
       await CategoryService.updateCategory(
-        id: c.id,
-        name: c.name,
-        isActive: c.isActive,
+        id: updated.id,
+        name: updated.name,
+        isActive: updated.isActive,
       );
+
+      setState(() {
+        final index = _categories.indexWhere((e) => e.id == c.id);
+        if (index != -1) {
+          _categories[index] = updated;
+          _applySearch();
+        }
+      });
     } catch (_) {
-      setState(() => c.isActive = old); // rollback
+      // ❌ No snackbar here
     }
   }
 
@@ -139,7 +156,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
     );
 
     if (result == 'added' || result == 'updated') {
-      _loadCategories();
+      _loadCategories(); // 🔥 reload from API
     }
   }
 
@@ -179,16 +196,21 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
             /// SEARCH
             Padding(
               padding: const EdgeInsets.all(12),
-              child: TextField(
-                controller: _searchCtr,
-                decoration: InputDecoration(
-                  hintText: 'Search category...',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: TextField(
+                    controller: _searchCtr,
+                    decoration: InputDecoration(
+                      hintText: 'Search category...',
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -208,15 +230,23 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
                         ),
                       ),
                     )
-                  : ListView.separated(
+                  : GridView.builder(
                       padding: const EdgeInsets.only(
                         left: 12,
                         right: 12,
                         bottom: 100,
-                        // top: 12,
+                      ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: ResponsiveHelper.isMobile(context)
+                            ? 1
+                            : ResponsiveHelper.isTablet(context)
+                            ? 2
+                            : 3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 10,
+                        mainAxisExtent: 80,
                       ),
                       itemCount: _filtered.length,
-                      separatorBuilder: (_, __) => sh10,
                       itemBuilder: (_, i) {
                         final c = _filtered[i];
 
