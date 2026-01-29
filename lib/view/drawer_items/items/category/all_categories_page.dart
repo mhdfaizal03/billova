@@ -3,6 +3,7 @@ import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/services/category_services.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
+import 'package:billova/utils/local_Storage/category_local_store.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/view/drawer_items/items/category/add_categories_page.dart';
@@ -53,9 +54,26 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
   // LOAD
   // ─────────────────────────────────────────────
   Future<void> _loadCategories() async {
-    setState(() => _loading = true);
-
+    // 1. Load from Local Storage first
     try {
+      final local = await CategoryLocalStore.loadAll();
+      if (mounted && local.isNotEmpty) {
+        setState(() {
+          _categories = local;
+          _filtered = local;
+          _loading = false; // Show data immediately
+        });
+      }
+    } catch (_) {
+      // Ignore local load errors
+    }
+
+    // 2. Fetch from Network
+    try {
+      if (_categories.isEmpty) {
+        setState(() => _loading = true);
+      }
+
       final list = await CategoryService.fetchCategories();
       if (!mounted) return;
 

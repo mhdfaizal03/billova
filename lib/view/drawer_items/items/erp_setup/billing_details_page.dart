@@ -5,8 +5,9 @@ import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_field.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -71,14 +72,8 @@ class _BillingDetailsPageState extends State<BillingDetailsPage> {
     );
 
     setState(() => _loading = false);
-    Get.snackbar(
-      "Success",
-      "Billing details saved successfully",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.green,
-      colorText: Colors.white,
-      margin: const EdgeInsets.all(10),
-    );
+    if (mounted)
+      CustomSnackBar.showSuccess(context, "Billing details saved successfully");
   }
 
   @override

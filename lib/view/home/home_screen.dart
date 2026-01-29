@@ -5,8 +5,13 @@ import 'package:billova/models/services/category_services.dart';
 import 'package:billova/models/services/product_service.dart';
 import 'package:billova/models/model/product_models/product_model.dart';
 import 'package:billova/utils/constants/colors.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
+import 'package:billova/models/model/tax_models/tax_model.dart';
+import 'package:billova/models/services/tax_service.dart';
 import 'package:billova/utils/constants/sizes.dart';
-// import 'package:billova/utils/local_Storage/category_local_store.dart';
+import 'package:billova/utils/local_Storage/category_local_store.dart';
+import 'package:billova/utils/local_Storage/product_local_store.dart';
+import 'package:billova/utils/local_Storage/tax_local_store.dart';
 // import 'package:billova/utils/networks/internet_helper.dart';
 // import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
@@ -15,7 +20,7 @@ import 'package:billova/utils/widgets/custom_home_drawer.dart';
 import 'package:billova/view/ticket_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:billova/utils/widgets/loading_shimmer.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
 import 'package:get/get.dart';
@@ -43,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   // Mock data for the dropdown
   List<Category> _categories = [];
+  List<Tax> _taxes = [];
   String _selectedCategory = 'All';
   bool _loadingCategories = true;
 
@@ -72,43 +78,50 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _loadingCategories = true;
-      _loadingProducts = true;
-    });
+    // 1. FAST LOAD from Local Storage
+    final localCats =
+        await CategoryLocalStore.loadAll(); // Assuming loadCategories or loadAll
+    final localProds = await ProductLocalStore.loadAll();
+    final localTaxes = await TaxLocalStore.loadAll();
 
-    try {
-      // Load Categories
-      final cats = await CategoryService.fetchCategories();
-      // Load Products
-      final prods = await ProductService.fetchProducts();
-
-      if (!mounted) return;
-
+    if (mounted) {
       setState(() {
-        _categories = cats;
-        _products = prods;
-        _loadingCategories = false;
-        _loadingProducts = false;
+        _categories = localCats;
+        _products = localProds;
+        _taxes = localTaxes;
 
-        // Reset selected category if deleted
+        // Show loading ONLY if we have absolutely nothing
+        _loadingCategories = localCats.isEmpty;
+        _loadingProducts = localProds.isEmpty;
+
         if (_selectedCategory != 'All' &&
             !_categories.any((c) => c.id == _selectedCategory)) {
           _selectedCategory = 'All';
         }
+        _applyFilter();
+      });
+    }
 
+    // 2. BACKGROUND SYNC (Network)
+    try {
+      final netCats = await CategoryService.fetchCategories();
+      final netProds = await ProductService.fetchProducts();
+      final netTaxes = await TaxService.fetchTaxes();
+
+      if (!mounted) return;
+
+      setState(() {
+        _categories = netCats;
+        _products = netProds;
+        _taxes = netTaxes;
+        _loadingCategories = false;
+        _loadingProducts = false;
         _applyFilter();
       });
     } catch (_) {
-      Get.snackbar(
-        "Error",
-        "Failed to load data",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(10),
-      );
-      if (mounted) {
+      // If we have local data, we can ignore network errors silently or show a small toast
+      if (_products.isEmpty && mounted) {
+        if (mounted) CustomSnackBar.showError(context, "Failed to load data");
         setState(() {
           _loadingCategories = false;
           _loadingProducts = false;
@@ -119,13 +132,19 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   void _applyFilter() {
     setState(() {
-      if (_selectedCategory == 'All') {
-        _filteredProducts = _products;
-      } else {
-        _filteredProducts = _products
-            .where((p) => p.categoryId == _selectedCategory)
-            .toList();
+      final query = _searchCtr.text.trim().toLowerCase();
+
+      // 1. Filter by Category
+      List<Product> temp = (_selectedCategory == 'All')
+          ? _products
+          : _products.where((p) => p.categoryId == _selectedCategory).toList();
+
+      // 2. Filter by Search Query
+      if (query.isNotEmpty) {
+        temp = temp.where((p) => p.name.toLowerCase().contains(query)).toList();
       }
+
+      _filteredProducts = temp;
     });
   }
 
@@ -324,9 +343,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                           : null,
                     ),
                     onChanged: (val) {
-                      // Implement search logic combined with filter?
-                      // Currently _applySearch is listener on controller.
-                      // Let's ensure listener is active.
+                      _applyFilter();
                     },
                   ),
                 ),
@@ -334,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
               // --- Categories Horizontal List ---
               if (_loadingCategories)
-                const CategoryShimmer()
+                const Center(child: CircularProgressIndicator())
               else
                 Container(
                   height: 30,
@@ -405,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       children: [
                         sh10,
                         if (_loadingCategories || _loadingProducts)
-                          const ProductGridShimmer()
+                          const Center(child: CircularProgressIndicator())
                         else if (_filteredProducts.isEmpty)
                           ConstrainedBox(
                             constraints: BoxConstraints(
@@ -461,10 +478,20 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                               startOffset,
                                             );
                                           } else {
-                                            _addToTicket(product.name, {
-                                              'name': null,
-                                              'price': product.salePrice,
-                                            });
+                                            // Find Tax
+                                            final tax = _taxes.firstWhereOrNull(
+                                              (t) => t.id == product.taxId,
+                                            );
+
+                                            _addToTicket(
+                                              product.name,
+                                              {
+                                                'name': null,
+                                                'price': product.salePrice,
+                                              },
+                                              taxId: product.taxId,
+                                              taxRate: tax?.rate ?? 0.0,
+                                            );
 
                                             _flyToCart(
                                               startOffset,
@@ -537,14 +564,19 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                                             fit: BoxFit.cover,
                                                             placeholder:
                                                                 (
-                                                                  context,
-                                                                  url,
-                                                                ) => const ShimmerHelper(
-                                                                  width: double
-                                                                      .infinity,
-                                                                  height: double
-                                                                      .infinity,
-                                                                  radius: 0,
+                                                                  _,
+                                                                  __,
+                                                                ) => const Center(
+                                                                  child: SizedBox(
+                                                                    width: 20,
+                                                                    height: 20,
+                                                                    child: CircularProgressIndicator(
+                                                                      strokeWidth:
+                                                                          2,
+                                                                      color: Colors
+                                                                          .grey,
+                                                                    ),
+                                                                  ),
                                                                 ),
                                                             errorWidget:
                                                                 (
@@ -733,10 +765,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   return InkWell(
                     onTap: () {
                       Navigator.pop(context);
-                      _addToTicket(product.name, {
-                        'name': option.optionName,
-                        'price': option.optionRate,
-                      });
+                      final tax = _taxes.firstWhereOrNull(
+                        (t) => t.id == product.taxId,
+                      );
+
+                      _addToTicket(
+                        product.name,
+                        {'name': option.optionName, 'price': option.optionRate},
+                        taxId: product.taxId,
+                        taxRate: tax?.rate ?? 0.0,
+                      );
                       _flyToCart(startOffset, product.imageUrl ?? '');
                     },
                     borderRadius: BorderRadius.circular(18),
@@ -801,7 +839,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     );
   }
 
-  void _addToTicket(String product, Map<String, dynamic>? variant) {
+  void _addToTicket(
+    String product,
+    Map<String, dynamic>? variant, {
+    String? taxId,
+    double taxRate = 0.0,
+  }) {
     final String? variantName = variant?['name'];
     final int price = (variant?['price'] as num?)?.toInt() ?? 0;
 
@@ -819,6 +862,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             variantName: variantName, // null for non-variant
             price: price,
             quantity: 1,
+            taxId: taxId,
+            taxRate: taxRate,
           ),
         );
       }

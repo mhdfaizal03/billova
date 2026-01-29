@@ -9,6 +9,7 @@ import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:billova/view/home/home_screen.dart';
@@ -262,6 +263,50 @@ class _TicketPageState extends State<TicketPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
+                            'Subtotal',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            '₹${items.fold(0, (s, i) => s + i.subtotal)}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Tax',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            '₹${items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
                             'TOTAL',
                             style: TextStyle(
                               fontSize: 17,
@@ -377,6 +422,23 @@ class _TicketPageState extends State<TicketPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  const Text("Subtotal"),
+                  Text("₹${items.fold(0, (s, i) => s + i.subtotal)}"),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Tax"),
+                  Text(
+                    "₹${items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}",
+                  ),
+                ],
+              ),
+              const Divider(thickness: 1, height: 30),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
                   const Text(
                     "GRAND TOTAL",
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
@@ -486,15 +548,14 @@ class _TicketPageState extends State<TicketPage> {
 
     await SalesLocalStore.saveOrder(order);
 
-    Get.snackbar(
-      printed ? "Payment Success" : "Payment Success (Print Failed)",
-      printed
-          ? "Receipt printed and saved"
-          : "Order saved but printer not found",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: printed ? Colors.green : Colors.orange,
-      colorText: Colors.white,
-    );
+    if (printed) {
+      CustomSnackBar.showSuccess(context, "Payment Success - Receipt printed");
+    } else {
+      CustomSnackBar.showWarning(
+        context,
+        "Payment Success - Printer not found",
+      );
+    }
     Get.offAll(() => HomeScreen()); // Navigate back to home and clear ticket
   }
 

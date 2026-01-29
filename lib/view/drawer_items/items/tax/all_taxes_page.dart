@@ -2,6 +2,7 @@ import 'package:billova/models/model/tax_models/tax_model.dart';
 import 'package:billova/models/services/tax_service.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
+import 'package:billova/utils/local_Storage/tax_local_store.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/view/drawer_items/items/tax/add_tax_page.dart';
@@ -45,9 +46,26 @@ class _AllTaxesPageState extends State<AllTaxesPage> with RouteAware {
   // LOAD
   // ─────────────────────────────────────────────
   Future<void> _loadTaxes() async {
-    setState(() => _loading = true);
-
+    // 1. Load from Local Storage first
     try {
+      final local = await TaxLocalStore.loadAll();
+      if (mounted && local.isNotEmpty) {
+        setState(() {
+          _taxes = local;
+          _filtered = local;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      // Ignore local error
+    }
+
+    // 2. Fetch from Network
+    try {
+      if (_taxes.isEmpty) {
+        setState(() => _loading = true);
+      }
+
       final list = await TaxService.fetchTaxes();
       if (!mounted) return;
 
@@ -57,7 +75,8 @@ class _AllTaxesPageState extends State<AllTaxesPage> with RouteAware {
       });
     } catch (e, stack) {
       print('AllTaxesPage Load Error: $e\n$stack');
-      if (mounted) {
+      // Only show error if we have no data
+      if (mounted && _taxes.isEmpty) {
         CustomSnackBar.show(
           context: context,
           message: 'Failed to load taxes: $e',

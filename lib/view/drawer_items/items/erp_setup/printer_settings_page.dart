@@ -1,10 +1,12 @@
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/utils/networks/printer_helper.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_field.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
@@ -57,16 +59,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     ].request();
 
     final allDevices = await PrintBluetoothThermal.pairedBluetooths;
-    _devices = allDevices
-        .where(
-          (d) =>
-              d.name.toLowerCase().contains("printer") ||
-              d.name.toLowerCase().contains("thermal") ||
-              d.name.toLowerCase().contains("pos") ||
-              d.name.toLowerCase().contains("mtp") ||
-              d.name.toLowerCase().contains("rpp"),
-        )
-        .toList();
+    // ALLOW ALL DEVICES - Do not filter by name as some printers have weird names
+    _devices = allDevices.toList();
     if (savedAddress != null) {
       try {
         _selectedDevice = _devices.firstWhere(
@@ -93,13 +87,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     }
 
     setState(() => _loading = false);
-    Get.snackbar(
-      "Success",
-      "Printer settings saved",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.green,
-      colorText: Colors.white,
-    );
+    if (mounted) CustomSnackBar.showSuccess(context, "Printer settings saved");
   }
 
   @override
@@ -223,6 +211,88 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                             child: CustomButtons(
                               text: const Text("Save Configuration"),
                               onPressed: _save,
+                            ),
+                          ),
+                          sh20,
+                          SizedBox(
+                            height: 50,
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.black),
+                                foregroundColor: Colors.black,
+                              ),
+                              child: const Text("Test Print (Saved Settings)"),
+                              onPressed: () async {
+                                // Show dialog to choose network or bluetooth
+                                Get.defaultDialog(
+                                  title: "Test Print",
+                                  content: Column(
+                                    children: [
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          Get.back();
+                                          CustomSnackBar.show(
+                                            context: context,
+                                            message: "Testing Network Print...",
+                                            color: Colors.blueAccent,
+                                          );
+
+                                          bool res =
+                                              await PrinterHelper.testPrint(
+                                                isNetwork: true,
+                                              );
+
+                                          if (!mounted) return;
+                                          if (res) {
+                                            CustomSnackBar.showSuccess(
+                                              context,
+                                              "Success",
+                                            );
+                                          } else {
+                                            CustomSnackBar.showError(
+                                              context,
+                                              "Failed",
+                                            );
+                                          }
+                                        },
+                                        child: Text("Test Network"),
+                                      ),
+                                      SizedBox(height: 10),
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          Get.back();
+                                          CustomSnackBar.show(
+                                            context: context,
+                                            message:
+                                                "Testing Bluetooth Print...",
+                                            color: Colors.blueAccent,
+                                          );
+
+                                          bool res =
+                                              await PrinterHelper.testPrint(
+                                                isNetwork: false,
+                                              );
+
+                                          if (!mounted) return;
+                                          if (res) {
+                                            CustomSnackBar.showSuccess(
+                                              context,
+                                              "Success",
+                                            );
+                                          } else {
+                                            CustomSnackBar.showError(
+                                              context,
+                                              "Failed",
+                                            );
+                                          }
+                                        },
+                                        child: Text("Test Bluetooth"),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ],

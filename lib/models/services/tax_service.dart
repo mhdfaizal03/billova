@@ -83,7 +83,11 @@ class TaxService {
       final res = await http.post(
         Uri.parse(_baseUrl),
         headers: await _headers(),
-        body: jsonEncode({'name': name, 'rate': rate, 'is_active': isActive}),
+        body: jsonEncode({
+          'name': name,
+          'percentage': rate,
+          'is_active': isActive,
+        }),
       );
       print('TaxService CREATE Res: ${res.statusCode} ${res.body}');
 
@@ -129,7 +133,11 @@ class TaxService {
       final res = await http.put(
         Uri.parse('$_baseUrl/$id'),
         headers: await _headers(),
-        body: jsonEncode({'name': name, 'rate': rate, 'is_active': isActive}),
+        body: jsonEncode({
+          'name': name,
+          'percentage': rate,
+          'is_active': isActive,
+        }),
       );
 
       if (res.statusCode != 200) {

@@ -12,8 +12,6 @@ import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:get/utils.dart';
 
 class AddEditCategoryPage extends StatefulWidget {
   final Category? category;
@@ -47,6 +45,26 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
 
     final name = _nameCtr.text.trim();
 
+    // 🔍 DUPLICATE CHECK
+    try {
+      final local = await CategoryLocalStore.loadAll();
+      // Check if any OTHER category has the same name (if editing, ignore self)
+      final exists = local.any((c) {
+        if (_isEdit && c.id == widget.category!.id) return false;
+        return c.name.toLowerCase() == name.toLowerCase();
+      });
+
+      if (exists) {
+        setState(() => _loading = false);
+        if (mounted) {
+          CustomSnackBar.showError(context, "Category '$name' already exists");
+        }
+        return;
+      }
+    } catch (_) {
+      // Ignore local check failure and proceed to server
+    }
+
     try {
       if (_isEdit) {
         await CategoryService.updateCategory(
@@ -55,14 +73,15 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
           isActive: _isActive,
         );
 
-        Get.back(result: 'updated');
+        if (mounted) Navigator.pop(context, 'updated');
         return;
       }
 
       await CategoryService.createCategory(name: name, isActive: _isActive);
 
-      Get.back(result: 'added');
+      if (mounted) Navigator.pop(context, 'added');
     } on NetworkException catch (e) {
+      if (!mounted) return;
       // 🔔 SHOW ERROR ONLY FOR ADD / UPDATE
       CustomSnackBar.show(
         context: context,
@@ -70,10 +89,11 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
         message: e.message,
       );
     } catch (e) {
+      if (!mounted) return;
       CustomSnackBar.show(
         context: context,
         color: Colors.red,
-        message: e.toString(),
+        message: e.toString().replaceAll("Exception: ", ""),
       );
     } finally {
       if (mounted) setState(() => _loading = false);

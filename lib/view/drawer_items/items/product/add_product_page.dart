@@ -14,7 +14,6 @@ import 'package:billova/utils/local_Storage/category_local_store.dart';
 import 'package:billova/utils/local_Storage/tax_local_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:get/get.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
@@ -241,7 +240,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
             message: 'Product added successfully',
             color: Colors.green,
           );
-          Get.back(result: true);
+          Navigator.pop(context, true);
         }
       } else {
         await ProductService.updateProduct(newProduct, imageFile: _imageFile);
@@ -251,7 +250,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
             message: 'Product updated successfully',
             color: Colors.green,
           );
-          Get.back(result: true);
+          Navigator.pop(context, true);
         }
       }
     } catch (e) {

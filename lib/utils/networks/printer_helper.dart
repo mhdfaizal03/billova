@@ -25,7 +25,12 @@ class PrinterHelper {
         profile,
       );
 
-      final PosPrintResult res = await printer.connect(ip, port: port);
+      // Add timeout to connect
+      final PosPrintResult res = await printer.connect(
+        ip,
+        port: port,
+        timeout: const Duration(seconds: 5),
+      );
 
       if (res == PosPrintResult.success) {
         await _generateNetworkTicket(printer, order, store, paperSize);
@@ -33,6 +38,83 @@ class PrinterHelper {
         return true;
       }
       return false;
+    } catch (e) {
+      print("Network Print Error: $e");
+      return false;
+    }
+  }
+
+  // --- Test Print ---
+  static Future<bool> testPrint({required bool isNetwork}) async {
+    try {
+      final settings = await SettingsLocalStore.loadPrinterSettings();
+      final int paperSize = settings['paper'] ?? 80;
+      final profile = await CapabilityProfile.load();
+
+      if (isNetwork) {
+        final String ip = settings['ip'] ?? "";
+        final int port = settings['port'] ?? 9100;
+        if (ip.isEmpty) return false;
+
+        final printer = NetworkPrinter(
+          paperSize == 80 ? PaperSize.mm80 : PaperSize.mm58,
+          profile,
+        );
+        final res = await printer.connect(
+          ip,
+          port: port,
+          timeout: const Duration(seconds: 4),
+        );
+        if (res == PosPrintResult.success) {
+          printer.text(
+            "TEST PRINT SUCCESS!",
+            styles: const PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2,
+            ),
+          );
+          printer.feed(2);
+          printer.cut();
+          printer.disconnect();
+          return true;
+        }
+        return false;
+      } else {
+        // Bluetooth
+        bool isConnected = await PrintBluetoothThermal.connectionStatus;
+        if (!isConnected) {
+          final address =
+              settings['bluetooth_device_address'] ??
+              await SettingsLocalStore.loadBluetoothDevice();
+          if (address == null) return false;
+          bool connected = await PrintBluetoothThermal.connect(
+            macPrinterAddress: address,
+          );
+          if (!connected) return false;
+        }
+
+        final generator = Generator(
+          paperSize == 80 ? PaperSize.mm80 : PaperSize.mm58,
+          profile,
+        );
+        List<int> bytes = [];
+        bytes.addAll(
+          generator.text(
+            "TEST PRINT SUCCESS!",
+            styles: const PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2,
+            ),
+          ),
+        );
+        bytes.addAll(generator.feed(2));
+        bytes.addAll(generator.cut());
+        return await PrintBluetoothThermal.writeBytes(bytes);
+      }
     } catch (e) {
       return false;
     }
@@ -101,6 +183,34 @@ class PrinterHelper {
         ),
       ]);
     }
+
+    printer.hr();
+
+    // Subtotal & Tax
+    double subtotal = order.items.fold(0, (s, i) => s + i.subtotal);
+    double taxTotal = order.items.fold(0.0, (s, i) => s + i.taxAmount);
+
+    printer.row([
+      PosColumn(
+        text: "Subtotal",
+        width: 6,
+        styles: const PosStyles(bold: false),
+      ),
+      PosColumn(
+        text: subtotal.toStringAsFixed(0),
+        width: 6,
+        styles: const PosStyles(align: PosAlign.right, bold: false),
+      ),
+    ]);
+
+    printer.row([
+      PosColumn(text: "Tax", width: 6, styles: const PosStyles(bold: false)),
+      PosColumn(
+        text: taxTotal.toStringAsFixed(2),
+        width: 6,
+        styles: const PosStyles(align: PosAlign.right, bold: false),
+      ),
+    ]);
 
     printer.hr();
     printer.row([
@@ -220,6 +330,34 @@ class PrinterHelper {
           ]),
         );
       }
+
+      bytes.addAll(generator.hr());
+
+      // Subtotal & Tax values
+      double subtotal = order.items.fold(0, (s, i) => s + i.subtotal);
+      double taxTotal = order.items.fold(0.0, (s, i) => s + i.taxAmount);
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(text: "Subtotal", width: 6),
+          PosColumn(
+            text: subtotal.toStringAsFixed(0),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(text: "Tax", width: 6),
+          PosColumn(
+            text: taxTotal.toStringAsFixed(2),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
 
       bytes.addAll(generator.hr());
       bytes.addAll(

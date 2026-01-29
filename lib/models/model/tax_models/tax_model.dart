@@ -17,7 +17,7 @@ class Tax {
     return Tax(
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
-      rate: (json['rate'] ?? 0).toDouble(),
+      rate: (json['percentage'] ?? json['rate'] ?? 0).toDouble(),
       isActive: json['is_active'] ?? true,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()

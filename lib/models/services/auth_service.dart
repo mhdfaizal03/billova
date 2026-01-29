@@ -9,6 +9,7 @@ import 'package:billova/models/model/auth_models/login_request.dart';
 import 'package:billova/models/model/auth_models/otp_verify_request.dart';
 import 'package:billova/models/model/auth_models/resend_otp_request.dart';
 import 'package:billova/models/model/auth_models/reset_password_request.dart';
+import 'package:billova/models/model/auth_models/reset_password_confirm_request.dart';
 import 'package:billova/models/model/auth_models/signup_request.dart';
 
 class AuthService {
@@ -129,6 +130,29 @@ class AuthService {
   /// ---------------- RESET PASSWORD ----------------
   static Future<AuthResponse> resetPassword(
     ResetPasswordRequest request,
+  ) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/reset-password'),
+            headers: _headers(),
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(_timeout);
+
+      return _parseResponse(res);
+    } on TimeoutException {
+      return _timeoutError();
+    } on SocketException {
+      return _noInternetError();
+    } catch (e) {
+      return _unknownError(e);
+    }
+  }
+
+  /// ---------------- CONFIRM RESET PASSWORD (Step 2) ----------------
+  static Future<AuthResponse> confirmPasswordReset(
+    ResetPasswordConfirmRequest request,
   ) async {
     try {
       final res = await http

@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
 import 'package:get/get.dart';
 import 'package:billova/utils/networks/printer_helper.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/utils/constants/sizes.dart';
 
 class SalesPage extends StatefulWidget {
@@ -226,6 +227,7 @@ class _SalesPageState extends State<SalesPage> {
 
   void _showOrderDetail(OrderModel order) async {
     final store = await SettingsLocalStore.loadStoreDetails();
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -266,6 +268,25 @@ class _SalesPageState extends State<SalesPage> {
                   ],
                 ),
               ),
+            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Subtotal"),
+                Text(
+                  "₹${order.items.fold(0, (s, i) => s + i.subtotal)}",
+                ), // Using subtotal from ticket item
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Tax"),
+                Text(
+                  "₹${order.items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}",
+                ),
+              ],
             ),
             const Divider(),
             Row(
@@ -356,12 +377,12 @@ class _SalesPageState extends State<SalesPage> {
       printed = await PrinterHelper.printViaBluetooth(order);
     }
 
-    Get.snackbar(
-      printed ? "Print Success" : "Print Failed",
-      printed ? "Receipt sent to printer" : "Could not connect to printer",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: printed ? Colors.green : Colors.red,
-      colorText: Colors.white,
-    );
+    if (printed) {
+      if (!mounted) return;
+      CustomSnackBar.showSuccess(context, "Receipt sent to printer");
+    } else {
+      if (!mounted) return;
+      CustomSnackBar.showError(context, "Could not connect to printer");
+    }
   }
 }

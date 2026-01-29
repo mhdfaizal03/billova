@@ -3,8 +3,10 @@ import 'package:billova/models/services/product_service.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
+import 'package:billova/utils/local_Storage/product_local_store.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
-import 'package:billova/utils/widgets/loading_shimmer.dart';
+
 import 'package:billova/view/drawer_items/items/product/add_product_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
@@ -38,9 +40,27 @@ class _AllProductsPageState extends State<AllProductsPage> {
   // LOAD
   // ─────────────────────────────────────────────
   Future<void> _loadProducts() async {
-    setState(() => _loading = true);
-
+    // 1. Load from Local Storage first
     try {
+      final local = await ProductLocalStore.loadAll();
+      if (mounted && local.isNotEmpty) {
+        setState(() {
+          _products = local;
+          _filtered = local;
+          _loading = false; // Show data immediately
+        });
+      }
+    } catch (_) {
+      // Ignore local load errors
+    }
+
+    // 2. Fetch from Network
+    try {
+      // Only show loading if we didn't have local data
+      if (_products.isEmpty) {
+        setState(() => _loading = true);
+      }
+
       final list = await ProductService.fetchProducts();
       if (!mounted) return;
 
@@ -49,14 +69,11 @@ class _AllProductsPageState extends State<AllProductsPage> {
         _filtered = list;
       });
     } catch (_) {
-      Get.snackbar(
-        "Error",
-        "Failed to load products",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(10),
-      );
+      // If we have local data, we can ignore network errors silently or show a small toast
+      if (_products.isEmpty && mounted) {
+        if (mounted)
+          CustomSnackBar.showError(context, "Failed to load products");
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -142,7 +159,7 @@ class _AllProductsPageState extends State<AllProductsPage> {
             /// LIST
             Expanded(
               child: _loading
-                  ? const ProductListShimmer()
+                  ? const Center(child: CircularProgressIndicator())
                   : _filtered.isEmpty
                   ? const Center(
                       child: Text(
@@ -202,12 +219,15 @@ class _AllProductsPageState extends State<AllProductsPage> {
                                       ? CachedNetworkImage(
                                           imageUrl: p.imageUrl!,
                                           fit: BoxFit.cover,
-                                          placeholder: (_, __) =>
-                                              const ShimmerHelper(
-                                                width: 50,
-                                                height: 50,
-                                                radius: 0,
+                                          placeholder: (_, __) => const Center(
+                                            child: SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
                                               ),
+                                            ),
+                                          ),
                                           errorWidget: (_, __, ___) =>
                                               const Icon(Icons.error, size: 20),
                                         )

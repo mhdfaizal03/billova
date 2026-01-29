@@ -58,6 +58,7 @@ class _SelectStorePageState extends State<SelectStorePage> {
         throw Exception('Invalid login response');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _loadingIndex = null);
 
       ScaffoldMessenger.of(context).showSnackBar(

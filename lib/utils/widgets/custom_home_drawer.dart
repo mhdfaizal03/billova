@@ -8,6 +8,7 @@ import 'package:billova/utils/local_Storage/token_storage.dart';
 import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/custom_dialog_box.dart';
 import 'package:billova/view/auth/select_auth_page.dart';
+import 'package:billova/view/drawer_items/dashboard/dashboard_page.dart';
 import 'package:billova/view/drawer_items/items_page.dart';
 import 'package:billova/view/drawer_items/reciepts_page.dart';
 import 'package:billova/view/drawer_items/sales_page.dart';
@@ -129,6 +130,15 @@ Drawer buildGlassDrawer(BuildContext context) {
                     children:
                         [
                               _drawerSection("DASHBOARD"),
+                              _glassTile(
+                                Icons.dashboard_customize_rounded,
+                                () {
+                                  Get.back();
+                                  Get.to(const DashboardPage());
+                                },
+                                "Dashboard",
+                                colors,
+                              ),
 
                               _glassTile(
                                 Icons.support_agent_rounded,

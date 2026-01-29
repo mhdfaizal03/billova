@@ -71,6 +71,7 @@ class _LoginPageState extends State<LoginPage> {
     /// 🔹 CASE 2: SINGLE STORE / NORMAL LOGIN
     if (response.token != null && response.token!.isNotEmpty) {
       await TokenStorage.saveToken(response.token!);
+      if (!mounted) return;
 
       Get.offAll(() => HomeScreen(), transition: Transition.fadeIn);
 
@@ -80,6 +81,7 @@ class _LoginPageState extends State<LoginPage> {
         message: response.message,
       );
     } else {
+      if (!mounted) return;
       CustomSnackBar.show(
         color: AppColors().browcolor,
         context: context,

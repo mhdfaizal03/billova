@@ -1,17 +1,23 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:billova/utils/local_Storage/token_storage.dart';
 
 class SettingsLocalStore {
-  static const String _keyStoreName = 'store_name';
-  static const String _keyAddress = 'store_address';
-  static const String _keyContact = 'store_contact';
-  static const String _keyGst = 'store_gst';
-  static const String _keyHeader = 'store_header';
-  static const String _keyFooter = 'store_footer';
-  static const String _keyLogo = 'store_logo';
+  static const String _baseStoreName = 'store_name';
+  static const String _baseAddress = 'store_address';
+  static const String _baseContact = 'store_contact';
+  static const String _baseGst = 'store_gst';
+  static const String _baseHeader = 'store_header';
+  static const String _baseFooter = 'store_footer';
+  static const String _baseLogo = 'store_logo';
 
   static const String _keyPrinterIp = 'printer_ip';
   static const String _keyPrinterPort = 'printer_port';
   static const String _keyPaperSize = 'paper_size'; // 80 or 58
+
+  static Future<String> _key(String base) async {
+    final storeId = await TokenStorage.getSelectedStore();
+    return '${base}_${storeId ?? 'default'}';
+  }
 
   // ─────────────────────────────────────────────
   // LOAD
@@ -19,22 +25,28 @@ class SettingsLocalStore {
   static Future<Map<String, String>> loadStoreDetails() async {
     final prefs = await SharedPreferences.getInstance();
     return {
-      'name': prefs.getString(_keyStoreName) ?? '',
-      'address': prefs.getString(_keyAddress) ?? '',
-      'contact': prefs.getString(_keyContact) ?? '',
-      'gst': prefs.getString(_keyGst) ?? '',
-      'header': prefs.getString(_keyHeader) ?? '',
-      'footer': prefs.getString(_keyFooter) ?? '',
-      'logo': prefs.getString(_keyLogo) ?? '',
+      'name': prefs.getString(await _key(_baseStoreName)) ?? '',
+      'address': prefs.getString(await _key(_baseAddress)) ?? '',
+      'contact': prefs.getString(await _key(_baseContact)) ?? '',
+      'gst': prefs.getString(await _key(_baseGst)) ?? '',
+      'header': prefs.getString(await _key(_baseHeader)) ?? '',
+      'footer': prefs.getString(await _key(_baseFooter)) ?? '',
+      'logo': prefs.getString(await _key(_baseLogo)) ?? '',
     };
   }
 
   static Future<Map<String, dynamic>> loadPrinterSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    // Use store-specific keys if possible, effectively making printer settings per-store
+    // We reuse the _key helper to generate keys like 'printer_ip_store123'
+    final ipKey = await _key(_keyPrinterIp);
+    final portKey = await _key(_keyPrinterPort);
+    final paperKey = await _key(_keyPaperSize);
+
     return {
-      'ip': prefs.getString(_keyPrinterIp) ?? '192.168.1.100',
-      'port': prefs.getInt(_keyPrinterPort) ?? 9100,
-      'paper': prefs.getInt(_keyPaperSize) ?? 80,
+      'ip': prefs.getString(ipKey) ?? '192.168.1.100',
+      'port': prefs.getInt(portKey) ?? 9100,
+      'paper': prefs.getInt(paperKey) ?? 80,
     };
   }
 
@@ -51,13 +63,13 @@ class SettingsLocalStore {
     required String logo,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyStoreName, name);
-    await prefs.setString(_keyAddress, address);
-    await prefs.setString(_keyContact, contact);
-    await prefs.setString(_keyGst, gst);
-    await prefs.setString(_keyHeader, header);
-    await prefs.setString(_keyFooter, footer);
-    await prefs.setString(_keyLogo, logo);
+    await prefs.setString(await _key(_baseStoreName), name);
+    await prefs.setString(await _key(_baseAddress), address);
+    await prefs.setString(await _key(_baseContact), contact);
+    await prefs.setString(await _key(_baseGst), gst);
+    await prefs.setString(await _key(_baseHeader), header);
+    await prefs.setString(await _key(_baseFooter), footer);
+    await prefs.setString(await _key(_baseLogo), logo);
   }
 
   static Future<void> savePrinterSettings({
@@ -66,9 +78,9 @@ class SettingsLocalStore {
     required int paper,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyPrinterIp, ip);
-    await prefs.setInt(_keyPrinterPort, port);
-    await prefs.setInt(_keyPaperSize, paper);
+    await prefs.setString(await _key(_keyPrinterIp), ip);
+    await prefs.setInt(await _key(_keyPrinterPort), port);
+    await prefs.setInt(await _key(_keyPaperSize), paper);
   }
 
   static const String _keyBluetoothDevice = 'bluetooth_device_address';

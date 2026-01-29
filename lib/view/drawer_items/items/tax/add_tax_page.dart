@@ -9,7 +9,6 @@ import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 class AddEditTaxPage extends StatefulWidget {
   final Tax? tax;
@@ -55,13 +54,13 @@ class _AddEditTaxPageState extends State<AddEditTaxPage> {
           isActive: _isActive,
         );
 
-        Get.back(result: 'updated');
+        if (mounted) Navigator.pop(context, 'updated');
         return;
       }
 
       await TaxService.createTax(name: name, rate: rate, isActive: _isActive);
 
-      Get.back(result: 'added');
+      if (mounted) Navigator.pop(context, 'added');
     } on NetworkException catch (e) {
       CustomSnackBar.show(
         context: context,
