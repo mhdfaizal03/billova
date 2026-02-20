@@ -24,15 +24,11 @@ class AllCategoriesPage extends StatefulWidget {
 class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
   final TextEditingController _searchCtr = TextEditingController();
 
-  List<Category> _categories = [];
-  List<Category> _filtered = [];
-  bool _loading = true;
-
   @override
   void initState() {
     super.initState();
     _loadCategories();
-    _searchCtr.addListener(_applySearch);
+    _searchCtr.addListener(() => setState(() {}));
   }
 
   @override
@@ -61,24 +57,6 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
     if (provider.categories.isEmpty) {
       await provider.fetchCategories();
     }
-    if (mounted) {
-      setState(() {
-        _categories = provider.categories;
-        _filtered = List.from(_categories);
-      });
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // SEARCH
-  // ─────────────────────────────────────────────
-  void _applySearch() {
-    final q = _searchCtr.text.toLowerCase();
-    setState(() {
-      _filtered = _categories
-          .where((c) => c.name.toLowerCase().contains(q))
-          .toList();
-    });
   }
 
   // ─────────────────────────────────────────────
@@ -109,14 +87,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
     if (!ok) return;
 
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    final success = await provider.deleteCategory(c.id);
-
-    if (success && mounted) {
-      setState(() {
-        _categories.removeWhere((e) => e.id == c.id);
-        _filtered.removeWhere((e) => e.id == c.id);
-      });
-    }
+    await provider.deleteCategory(c.id);
   }
 
   // ─────────────────────────────────────────────
@@ -124,23 +95,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
   // ─────────────────────────────────────────────
   Future<void> _toggleStatus(Category c) async {
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    final success = await provider.updateCategory(
-      c.id,
-      c.name,
-      isActive: !c.isActive,
-    );
-
-    if (success && mounted) {
-      setState(() {
-        final index = _categories.indexWhere((e) => e.id == c.id);
-        if (index != -1) {
-          _categories[index] = _categories[index].copyWith(
-            isActive: !c.isActive,
-          );
-          _applySearch();
-        }
-      });
-    }
+    await provider.updateCategory(c.id, c.name, isActive: !c.isActive);
   }
 
   // ─────────────────────────────────────────────
@@ -217,7 +172,16 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
             Expanded(
               child: Consumer<CategoryProvider>(
                 builder: (context, provider, child) {
-                  if (provider.isLoading && _filtered.isEmpty) {
+                  final query = _searchCtr.text.trim().toLowerCase();
+                  List<Category> displayCategories = provider.categories;
+
+                  if (query.isNotEmpty) {
+                    displayCategories = displayCategories
+                        .where((c) => c.name.toLowerCase().contains(query))
+                        .toList();
+                  }
+
+                  if (provider.isLoading && displayCategories.isEmpty) {
                     return ShimmerHelper.buildGridShimmer(
                       itemCount: 9,
                       crossAxisCount: ResponsiveHelper.isMobile(context)
@@ -229,7 +193,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
                     );
                   }
 
-                  if (_filtered.isEmpty) {
+                  if (displayCategories.isEmpty) {
                     return const Center(
                       child: Text(
                         'No categories found',
@@ -256,9 +220,9 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
                       mainAxisSpacing: 10,
                       mainAxisExtent: 80,
                     ),
-                    itemCount: _filtered.length,
+                    itemCount: displayCategories.length,
                     itemBuilder: (_, i) {
-                      final c = _filtered[i];
+                      final c = displayCategories[i];
 
                       return Container(
                         padding: const EdgeInsets.all(14),
