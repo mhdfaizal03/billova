@@ -1,6 +1,6 @@
 import 'package:billova/models/model/models/order_model.dart';
 import 'package:billova/utils/constants/colors.dart';
-import 'package:billova/utils/local_Storage/sales_local_store.dart';
+import 'package:billova/data/services/sales_service.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_field.dart';
@@ -29,7 +29,7 @@ class _RecieptsPageState extends State<RecieptsPage> {
   }
 
   Future<void> _loadReciepts() async {
-    final orders = await SalesLocalStore.getOrders();
+    final orders = await SalesService.getOrders();
     orders.sort((a, b) => b.dateTime.compareTo(a.dateTime));
     if (mounted) {
       setState(() {

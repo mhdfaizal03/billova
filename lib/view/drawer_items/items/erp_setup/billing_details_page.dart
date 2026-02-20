@@ -1,6 +1,6 @@
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/data/services/settings_service.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
@@ -38,7 +38,7 @@ class _BillingDetailsPageState extends State<BillingDetailsPage> {
   }
 
   Future<void> _loadDetails() async {
-    final data = await SettingsLocalStore.loadStoreDetails();
+    final data = await SettingsService.loadStoreDetails();
     _nameCtr.text = data['name'] ?? "";
     _addressCtr.text = data['address'] ?? "";
     _contactCtr.text = data['contact'] ?? "";
@@ -62,7 +62,7 @@ class _BillingDetailsPageState extends State<BillingDetailsPage> {
 
     setState(() => _loading = true);
 
-    await SettingsLocalStore.saveStoreDetails(
+    await SettingsService.saveStoreDetails(
       name: _nameCtr.text,
       address: _addressCtr.text,
       contact: _contactCtr.text,

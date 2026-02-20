@@ -1,6 +1,5 @@
 import 'package:billova/models/services/tax_service.dart';
 import 'package:billova/models/model/tax_models/tax_model.dart';
-import 'package:billova/utils/local_Storage/tax_local_store.dart';
 import 'package:billova/utils/networks/internet_helper.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/foundation.dart';
@@ -20,14 +19,13 @@ class TaxProvider extends ChangeNotifier {
       if (await NetworkHelper.hasInternet()) {
         final netTaxes = await TaxService.fetchTaxes(isActive: isActive);
         _taxes = netTaxes;
-        await TaxLocalStore.saveAll(netTaxes);
       } else {
-        _taxes = await TaxLocalStore.loadAll();
-        if (kDebugMode) print('Loaded taxes from local storage');
+        if (Get.context != null) {
+          CustomSnackBar.showError(Get.context!, 'No internet connection');
+        }
       }
     } catch (e) {
       if (kDebugMode) print('Error fetching taxes: $e');
-      _taxes = await TaxLocalStore.loadAll();
     } finally {
       setLoading(false);
     }
@@ -52,7 +50,6 @@ class TaxProvider extends ChangeNotifier {
         isActive: isActive,
       );
       _taxes.add(newTax);
-      await TaxLocalStore.saveAll(_taxes);
       notifyListeners();
       return newTax;
     } catch (e) {
@@ -92,7 +89,6 @@ class TaxProvider extends ChangeNotifier {
           rate: rate,
           isActive: isActive,
         );
-        await TaxLocalStore.saveAll(_taxes);
         notifyListeners();
       }
       return true;
@@ -115,7 +111,6 @@ class TaxProvider extends ChangeNotifier {
     try {
       await TaxService.deleteTax(id);
       _taxes.removeWhere((t) => t.id == id);
-      await TaxLocalStore.saveAll(_taxes);
       notifyListeners();
       return true;
     } catch (e) {

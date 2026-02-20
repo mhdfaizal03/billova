@@ -20,7 +20,6 @@ class CustomSnackBar {
       flushbarPosition: FlushbarPosition.TOP,
       margin: const EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(8),
-      leftBarIndicatorColor: Colors.white,
     ).show(context);
   }
 

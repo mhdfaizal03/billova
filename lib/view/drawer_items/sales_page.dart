@@ -3,8 +3,8 @@ import 'dart:ui';
 import 'package:billova/utils/widgets/custom_dialog_box.dart';
 import 'package:billova/models/model/models/order_model.dart';
 import 'package:billova/utils/constants/colors.dart';
-import 'package:billova/utils/local_Storage/sales_local_store.dart';
-import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/data/services/sales_service.dart';
+import 'package:billova/data/services/settings_service.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
@@ -35,7 +35,7 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   Future<void> _loadSales() async {
-    final orders = await SalesLocalStore.getOrders();
+    final orders = await SalesService.getOrders();
     // Sort by newest first
     orders.sort((a, b) => b.dateTime.compareTo(a.dateTime));
 
@@ -74,7 +74,7 @@ class _SalesPageState extends State<SalesPage> {
                 ),
               );
               if (confirm == true) {
-                await SalesLocalStore.clearHistory();
+                await SalesService.clearHistory();
                 _loadSales();
               }
             },
@@ -218,7 +218,7 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   void _showOrderDetail(OrderModel order) async {
-    final store = await SettingsLocalStore.loadStoreDetails();
+    final store = await SettingsService.loadStoreDetails();
     if (!mounted) return;
 
     showDialog(
@@ -323,8 +323,8 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   Future<void> _showPrinterSelection(OrderModel order) async {
-    final settings = await SettingsLocalStore.loadPrinterSettings();
-    final btDevice = await SettingsLocalStore.loadBluetoothDevice();
+    final settings = await SettingsService.loadPrinterSettings();
+    final btDevice = await SettingsService.loadBluetoothDevice();
 
     Get.bottomSheet(
       Container(

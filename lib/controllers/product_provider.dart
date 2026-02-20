@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:billova/models/model/product_models/product_model.dart';
 import 'package:billova/models/services/product_service.dart';
-import 'package:billova/utils/local_Storage/product_local_store.dart';
 import 'package:billova/utils/networks/internet_helper.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/foundation.dart';
@@ -21,14 +20,13 @@ class ProductProvider extends ChangeNotifier {
       if (await NetworkHelper.hasInternet()) {
         final netProds = await ProductService.fetchProducts();
         _products = netProds;
-        await ProductLocalStore.saveAll(netProds);
       } else {
-        _products = await ProductLocalStore.loadAll();
-        if (kDebugMode) print('Loaded products from local storage');
+        if (Get.context != null) {
+          CustomSnackBar.showError(Get.context!, 'No internet connection');
+        }
       }
     } catch (e) {
       if (kDebugMode) print('Error fetching products: $e');
-      _products = await ProductLocalStore.loadAll();
     } finally {
       setLoading(false);
     }
@@ -48,7 +46,6 @@ class ProductProvider extends ChangeNotifier {
         imageFile: imageFile,
       );
       _products.add(newProduct);
-      await ProductLocalStore.saveAll(_products);
       notifyListeners();
       return newProduct;
     } catch (e) {
@@ -76,7 +73,6 @@ class ProductProvider extends ChangeNotifier {
       final index = _products.indexWhere((p) => p.id == product.id);
       if (index != -1) {
         _products[index] = updatedProduct;
-        await ProductLocalStore.saveAll(_products);
         notifyListeners();
       }
       return true;
@@ -99,7 +95,6 @@ class ProductProvider extends ChangeNotifier {
     try {
       await ProductService.deleteProduct(id);
       _products.removeWhere((p) => p.id == id);
-      await ProductLocalStore.saveAll(_products);
       notifyListeners();
       return true;
     } catch (e) {

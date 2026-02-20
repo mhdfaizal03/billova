@@ -4,7 +4,7 @@ import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/scope.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/exceptions/network_exception.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
+
 import 'package:billova/utils/networks/internet_helper.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
@@ -12,6 +12,8 @@ import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:billova/controllers/category_provider.dart';
 
 class AddEditCategoryPage extends StatefulWidget {
   final Category? category;
@@ -47,9 +49,9 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
 
     // 🔍 DUPLICATE CHECK
     try {
-      final local = await CategoryLocalStore.loadAll();
+      final list = await CategoryService.fetchCategories();
       // Check if any OTHER category has the same name (if editing, ignore self)
-      final exists = local.any((c) {
+      final exists = list.any((c) {
         if (_isEdit && c.id == widget.category!.id) return false;
         return c.name.toLowerCase() == name.toLowerCase();
       });
@@ -66,10 +68,12 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
     }
 
     try {
+      final provider = Provider.of<CategoryProvider>(context, listen: false);
+
       if (_isEdit) {
-        await CategoryService.updateCategory(
-          id: widget.category!.id,
-          name: name,
+        await provider.updateCategory(
+          widget.category!.id,
+          name,
           isActive: _isActive,
         );
 
@@ -77,7 +81,7 @@ class _AddEditCategoryPageState extends State<AddEditCategoryPage> {
         return;
       }
 
-      await CategoryService.createCategory(name: name, isActive: _isActive);
+      await provider.createCategory(name, isActive: _isActive);
 
       if (mounted) Navigator.pop(context, 'added');
     } on NetworkException catch (e) {

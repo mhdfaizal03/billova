@@ -3,7 +3,7 @@ import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/services/category_services.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
+
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/view/drawer_items/items/category/add_categories_page.dart';
@@ -11,6 +11,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
 import 'package:billova/utils/widgets/shimmer_helper.dart';
+import 'package:provider/provider.dart';
+import 'package:billova/controllers/category_provider.dart';
 
 class AllCategoriesPage extends StatefulWidget {
   const AllCategoriesPage({super.key});
@@ -55,37 +57,15 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
   // LOAD
   // ─────────────────────────────────────────────
   Future<void> _loadCategories() async {
-    // 1. Load from Local Storage first
-    try {
-      final local = await CategoryLocalStore.loadAll();
-      if (mounted && local.isNotEmpty) {
-        setState(() {
-          _categories = local;
-          _filtered = local;
-          _loading = false; // Show data immediately
-        });
-      }
-    } catch (_) {
-      // Ignore local load errors
+    final provider = Provider.of<CategoryProvider>(context, listen: false);
+    if (provider.categories.isEmpty) {
+      await provider.fetchCategories();
     }
-
-    // 2. Fetch from Network
-    try {
-      if (_categories.isEmpty) {
-        setState(() => _loading = true);
-      }
-
-      final list = await CategoryService.fetchCategories();
-      if (!mounted) return;
-
+    if (mounted) {
       setState(() {
-        _categories = list;
-        _filtered = list;
+        _categories = provider.categories;
+        _filtered = List.from(_categories);
       });
-    } catch (_) {
-      // ❌ No snackbar here (as per requirement)
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -128,15 +108,14 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
 
     if (!ok) return;
 
-    try {
-      await CategoryService.deleteCategory(c.id);
+    final provider = Provider.of<CategoryProvider>(context, listen: false);
+    final success = await provider.deleteCategory(c.id);
 
+    if (success && mounted) {
       setState(() {
         _categories.removeWhere((e) => e.id == c.id);
         _filtered.removeWhere((e) => e.id == c.id);
       });
-    } catch (e) {
-      // ❌ No snackbar here (only show in Add/Edit)
     }
   }
 
@@ -144,24 +123,23 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
   // TOGGLE ACTIVE
   // ─────────────────────────────────────────────
   Future<void> _toggleStatus(Category c) async {
-    final updated = c.copyWith(isActive: !c.isActive);
+    final provider = Provider.of<CategoryProvider>(context, listen: false);
+    final success = await provider.updateCategory(
+      c.id,
+      c.name,
+      isActive: !c.isActive,
+    );
 
-    try {
-      await CategoryService.updateCategory(
-        id: updated.id,
-        name: updated.name,
-        isActive: updated.isActive,
-      );
-
+    if (success && mounted) {
       setState(() {
         final index = _categories.indexWhere((e) => e.id == c.id);
         if (index != -1) {
-          _categories[index] = updated;
+          _categories[index] = _categories[index].copyWith(
+            isActive: !c.isActive,
+          );
           _applySearch();
         }
       });
-    } catch (_) {
-      // ❌ No snackbar here
     }
   }
 
@@ -237,8 +215,10 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
 
             /// LIST
             Expanded(
-              child: _loading
-                  ? ShimmerHelper.buildGridShimmer(
+              child: Consumer<CategoryProvider>(
+                builder: (context, provider, child) {
+                  if (provider.isLoading && _filtered.isEmpty) {
+                    return ShimmerHelper.buildGridShimmer(
                       itemCount: 9,
                       crossAxisCount: ResponsiveHelper.isMobile(context)
                           ? 1
@@ -246,9 +226,11 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
                           ? 2
                           : 3,
                       itemHeight: 80,
-                    )
-                  : _filtered.isEmpty
-                  ? const Center(
+                    );
+                  }
+
+                  if (_filtered.isEmpty) {
+                    return const Center(
                       child: Text(
                         'No categories found',
                         style: TextStyle(
@@ -256,95 +238,98 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.only(
-                        left: 12,
-                        right: 12,
-                        bottom: 100,
-                      ),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: ResponsiveHelper.isMobile(context)
-                            ? 1
-                            : ResponsiveHelper.isTablet(context)
-                            ? 2
-                            : 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 10,
-                        mainAxisExtent: 80,
-                      ),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) {
-                        final c = _filtered[i];
-
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(.05),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      c.name,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    sh10,
-                                    Text(
-                                      c.isActive ? 'Active' : 'Inactive',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: c.isActive
-                                            ? Colors.green
-                                            : Colors.red,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              /// TOGGLE
-                              Transform.scale(
-                                scale: 0.8,
-                                child: CupertinoSwitch(
-                                  value: c.isActive,
-                                  activeColor: primary,
-                                  onChanged: (_) => _toggleStatus(c),
-                                ),
-                              ),
-
-                              /// EDIT
-                              IconButton(
-                                icon: Icon(Icons.edit_outlined, color: primary),
-                                onPressed: () => _openAddEdit(c),
-                              ),
-
-                              /// DELETE
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  color: Colors.red,
-                                ),
-                                onPressed: () => _confirmDelete(c),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    );
+                  }
+                  return GridView.builder(
+                    padding: const EdgeInsets.only(
+                      left: 12,
+                      right: 12,
+                      bottom: 100,
                     ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: ResponsiveHelper.isMobile(context)
+                          ? 1
+                          : ResponsiveHelper.isTablet(context)
+                          ? 2
+                          : 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 10,
+                      mainAxisExtent: 80,
+                    ),
+                    itemCount: _filtered.length,
+                    itemBuilder: (_, i) {
+                      final c = _filtered[i];
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(.05),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    c.name,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  sh10,
+                                  Text(
+                                    c.isActive ? 'Active' : 'Inactive',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: c.isActive
+                                          ? Colors.green
+                                          : Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            /// TOGGLE
+                            Transform.scale(
+                              scale: 0.8,
+                              child: CupertinoSwitch(
+                                value: c.isActive,
+                                activeColor: primary,
+                                onChanged: (_) => _toggleStatus(c),
+                              ),
+                            ),
+
+                            /// EDIT
+                            IconButton(
+                              icon: Icon(Icons.edit_outlined, color: primary),
+                              onPressed: () => _openAddEdit(c),
+                            ),
+
+                            /// DELETE
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.red,
+                              ),
+                              onPressed: () => _confirmDelete(c),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

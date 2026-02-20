@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:billova/models/model/models/order_model.dart';
-import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/data/services/settings_service.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
@@ -10,8 +10,8 @@ class PrinterHelper {
   // --- Network Printing ---
   static Future<bool> printViaNetwork(OrderModel order) async {
     try {
-      final settings = await SettingsLocalStore.loadPrinterSettings();
-      final store = await SettingsLocalStore.loadStoreDetails();
+      final settings = await SettingsService.loadPrinterSettings();
+      final store = await SettingsService.loadStoreDetails();
 
       final String ip = settings['ip'] ?? "";
       final int port = settings['port'] ?? 9100;
@@ -47,7 +47,7 @@ class PrinterHelper {
   // --- Test Print ---
   static Future<bool> testPrint({required bool isNetwork}) async {
     try {
-      final settings = await SettingsLocalStore.loadPrinterSettings();
+      final settings = await SettingsService.loadPrinterSettings();
       final int paperSize = settings['paper'] ?? 80;
       final profile = await CapabilityProfile.load();
 
@@ -87,7 +87,7 @@ class PrinterHelper {
         if (!isConnected) {
           final address =
               settings['bluetooth_device_address'] ??
-              await SettingsLocalStore.loadBluetoothDevice();
+              await SettingsService.loadBluetoothDevice();
           if (address == null) return false;
           bool connected = await PrintBluetoothThermal.connect(
             macPrinterAddress: address,
@@ -248,7 +248,7 @@ class PrinterHelper {
     try {
       bool isConnected = await PrintBluetoothThermal.connectionStatus;
       if (!isConnected) {
-        final address = await SettingsLocalStore.loadBluetoothDevice();
+        final address = await SettingsService.loadBluetoothDevice();
         if (address == null) return false;
 
         bool connected = await PrintBluetoothThermal.connect(
@@ -257,8 +257,8 @@ class PrinterHelper {
         if (!connected) return false;
       }
 
-      final store = await SettingsLocalStore.loadStoreDetails();
-      final settings = await SettingsLocalStore.loadPrinterSettings();
+      final store = await SettingsService.loadStoreDetails();
+      final settings = await SettingsService.loadPrinterSettings();
       final int paperSize = settings['paper'] ?? 80;
 
       final profile = await CapabilityProfile.load();

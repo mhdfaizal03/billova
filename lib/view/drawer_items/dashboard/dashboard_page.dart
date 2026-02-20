@@ -1,7 +1,7 @@
 import 'package:billova/models/model/models/order_model.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/local_Storage/sales_local_store.dart';
+import 'package:billova/data/services/sales_service.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:flutter/material.dart';
@@ -36,7 +36,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadAnalytics() async {
-    final orders = await SalesLocalStore.getOrders();
+    final orders = await SalesService.getOrders();
     // Sort Newest First
     orders.sort((a, b) => b.dateTime.compareTo(a.dateTime));
 

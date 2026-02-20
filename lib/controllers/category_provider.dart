@@ -1,6 +1,5 @@
-import 'package:billova/data/services/category_service.dart';
+import 'package:billova/models/services/category_services.dart';
 import 'package:billova/models/model/category_models/category_model.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
 import 'package:billova/utils/networks/internet_helper.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/foundation.dart' hide Category;
@@ -21,15 +20,13 @@ class CategoryProvider extends ChangeNotifier {
           isActive: isActive,
         );
         _categories = netCats;
-        await CategoryLocalStore.saveAll(netCats);
       } else {
-        _categories = await CategoryLocalStore.loadAll();
-        if (kDebugMode) print('Loaded categories from local storage');
+        if (Get.context != null) {
+          CustomSnackBar.showError(Get.context!, 'No internet connection');
+        }
       }
     } catch (e) {
       if (kDebugMode) print('Error fetching categories: $e');
-      // Fallback to local if network fails
-      _categories = await CategoryLocalStore.loadAll();
     } finally {
       setLoading(false);
     }
@@ -37,21 +34,22 @@ class CategoryProvider extends ChangeNotifier {
 
   Future<bool> createCategory(String name, {bool isActive = true}) async {
     if (!await NetworkHelper.hasInternet()) {
-      CustomSnackBar.show(
-        context: Get.context!,
-        message: 'Cannot create category while offline',
-      );
+      if (Get.context != null) {
+        CustomSnackBar.show(
+          context: Get.context!,
+          message: 'Cannot create category while offline',
+        );
+      }
       return false;
     }
 
     setLoading(true);
     try {
       final newCategory = await CategoryService.createCategory(
-        name,
+        name: name,
         isActive: isActive,
       );
       _categories.add(newCategory);
-      await CategoryLocalStore.saveAll(_categories); // Sync local
       notifyListeners();
       return true;
     } catch (e) {
@@ -68,24 +66,28 @@ class CategoryProvider extends ChangeNotifier {
     bool isActive = true,
   }) async {
     if (!await NetworkHelper.hasInternet()) {
-      CustomSnackBar.show(
-        context: Get.context!,
-        message: 'Cannot update category while offline',
-      );
+      if (Get.context != null) {
+        CustomSnackBar.show(
+          context: Get.context!,
+          message: 'Cannot update category while offline',
+        );
+      }
       return false;
     }
 
     setLoading(true);
     try {
-      final updatedCategory = await CategoryService.updateCategory(
-        id,
-        name,
+      await CategoryService.updateCategory(
+        id: id,
+        name: name,
         isActive: isActive,
       );
       final index = _categories.indexWhere((c) => c.id == id);
       if (index != -1) {
-        _categories[index] = updatedCategory;
-        await CategoryLocalStore.saveAll(_categories); // Sync local
+        _categories[index] = _categories[index].copyWith(
+          name: name,
+          isActive: isActive,
+        );
         notifyListeners();
       }
       return true;
@@ -99,10 +101,12 @@ class CategoryProvider extends ChangeNotifier {
 
   Future<bool> deleteCategory(String id) async {
     if (!await NetworkHelper.hasInternet()) {
-      CustomSnackBar.show(
-        context: Get.context!,
-        message: 'Cannot delete category while offline',
-      );
+      if (Get.context != null) {
+        CustomSnackBar.show(
+          context: Get.context!,
+          message: 'Cannot delete category while offline',
+        );
+      }
       return false;
     }
 
@@ -110,7 +114,6 @@ class CategoryProvider extends ChangeNotifier {
     try {
       await CategoryService.deleteCategory(id);
       _categories.removeWhere((c) => c.id == id);
-      await CategoryLocalStore.saveAll(_categories); // Sync local
       notifyListeners();
       return true;
     } catch (e) {

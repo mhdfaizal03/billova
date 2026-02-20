@@ -1,6 +1,6 @@
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/data/services/settings_service.dart';
 import 'package:billova/utils/networks/printer_helper.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
@@ -38,13 +38,13 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   }
 
   Future<void> _loadData() async {
-    final data = await SettingsLocalStore.loadPrinterSettings();
+    final data = await SettingsService.loadPrinterSettings();
     _ipCtr.text = data['ip'].toString();
     _portCtr.text = data['port'].toString();
     _selectedPaperSize = data['paper'] as int;
 
     // Load saved BT device
-    final savedAddress = await SettingsLocalStore.loadBluetoothDevice();
+    final savedAddress = await SettingsService.loadBluetoothDevice();
     await _loadDevices(savedAddress);
 
     if (mounted) setState(() => _loading = false);
@@ -77,14 +77,14 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
 
     setState(() => _loading = true);
 
-    await SettingsLocalStore.savePrinterSettings(
+    await SettingsService.savePrinterSettings(
       ip: _ipCtr.text,
       port: int.tryParse(_portCtr.text) ?? 9100,
       paper: _selectedPaperSize,
     );
 
     if (_selectedDevice != null) {
-      await SettingsLocalStore.saveBluetoothDevice(_selectedDevice!.macAdress);
+      await SettingsService.saveBluetoothDevice(_selectedDevice!.macAdress);
     }
 
     setState(() => _loading = false);

@@ -1,17 +1,15 @@
 import 'package:billova/main.dart';
 import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/model/models/ticket_item_model.dart';
-import 'package:billova/models/services/category_services.dart';
-import 'package:billova/models/services/product_service.dart';
 import 'package:billova/models/model/product_models/product_model.dart';
-import 'package:billova/utils/constants/colors.dart';
-import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/models/model/tax_models/tax_model.dart';
-import 'package:billova/models/services/tax_service.dart';
+import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
-import 'package:billova/utils/local_Storage/product_local_store.dart';
-import 'package:billova/utils/local_Storage/tax_local_store.dart';
+import 'package:billova/utils/widgets/custom_snackbar.dart';
+import 'package:provider/provider.dart';
+import 'package:billova/controllers/category_provider.dart';
+import 'package:billova/controllers/product_provider.dart';
+import 'package:billova/controllers/tax_provider.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_home_drawer.dart';
 import 'package:billova/view/ticket_page.dart';
@@ -33,15 +31,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final GlobalKey _totalKey = GlobalKey();
   final TextEditingController _searchCtr = TextEditingController();
 
-  List<Product> _products = [];
-  List<Product> _filteredProducts = [];
-  bool _loadingProducts = true;
-
   // Mock data for the dropdown
   List<Category> _categories = [];
   List<Tax> _taxes = [];
   String _selectedCategory = 'All';
-  bool _loadingCategories = true;
 
   List<TicketItem> ticketItems = [];
 
@@ -51,7 +44,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   @override
@@ -62,7 +57,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   @override
   void didPopNext() {
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   @override
@@ -73,69 +70,40 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Future<void> _loadData() async {
-    // 1. FAST LOAD from Local Storage
-    final localCats = await CategoryLocalStore.loadAll();
-    final localProds = await ProductLocalStore.loadAll();
-    final localTaxes = await TaxLocalStore.loadAll();
+    try {
+      final categoryProvider = context.read<CategoryProvider>();
+      final productProvider = context.read<ProductProvider>();
+      final taxProvider = context.read<TaxProvider>();
 
-    if (mounted) {
+      await categoryProvider.fetchCategories();
+      await productProvider.fetchProducts();
+      await taxProvider.fetchTaxes();
+
+      if (!mounted) return;
+
       setState(() {
-        _categories = localCats;
-        _products = localProds;
-        _taxes = localTaxes;
-
-        _loadingCategories = localCats.isEmpty;
-        _loadingProducts = localProds.isEmpty;
+        _categories = categoryProvider.categories;
+        _taxes = taxProvider.taxes;
 
         if (_selectedCategory != 'All' &&
             !_categories.any((c) => c.id == _selectedCategory)) {
           _selectedCategory = 'All';
         }
+
         _applyFilter();
       });
-    }
-
-    // 2. BACKGROUND SYNC (Network)
-    try {
-      final netCats = await CategoryService.fetchCategories();
-      final netProds = await ProductService.fetchProducts();
-      final netTaxes = await TaxService.fetchTaxes();
-
-      if (!mounted) return;
-
-      setState(() {
-        _categories = netCats;
-        _products = netProds;
-        _taxes = netTaxes;
-        _loadingCategories = false;
-        _loadingProducts = false;
-        _applyFilter();
-      });
-    } catch (_) {
-      if (_products.isEmpty && mounted) {
+    } catch (e, stacktrace) {
+      print("Error loading data: $e\n$stacktrace");
+      if (mounted) {
         CustomSnackBar.showError(context, "Failed to load data");
-        setState(() {
-          _loadingCategories = false;
-          _loadingProducts = false;
-        });
       }
     }
   }
 
   void _applyFilter() {
-    setState(() {
-      final query = _searchCtr.text.trim().toLowerCase();
-
-      List<Product> temp = (_selectedCategory == 'All')
-          ? _products
-          : _products.where((p) => p.categoryId == _selectedCategory).toList();
-
-      if (query.isNotEmpty) {
-        temp = temp.where((p) => p.name.toLowerCase().contains(query)).toList();
-      }
-
-      _filteredProducts = temp;
-    });
+    setState(
+      () {},
+    ); // Preserved to trigger UI rebuild when search filters change
   }
 
   @override
@@ -325,223 +293,258 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.3),
 
               // --- Categories Horizontal List ---
-              if (_loadingCategories)
-                ShimmerHelper.buildCategoryPillShimmer()
-              else
-                Container(
-                  height: 30,
-                  margin: const EdgeInsets.only(bottom: 0),
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    itemCount: _categories.length + 1,
-                    itemBuilder: (context, index) {
-                      final isAll = index == 0;
-                      final cat = isAll ? null : _categories[index - 1];
-                      final id = isAll ? 'All' : cat!.id;
-                      final name = isAll ? 'All' : cat!.name;
-                      final isSelected = _selectedCategory == id;
+              Consumer<CategoryProvider>(
+                builder: (context, catProvider, _) {
+                  if (catProvider.isLoading && catProvider.categories.isEmpty) {
+                    return ShimmerHelper.buildCategoryPillShimmer();
+                  }
 
-                      return Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedCategory = id;
-                                  _applyFilter();
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? primaryColor
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
+                  final categories = catProvider.categories;
+                  return Container(
+                    height: 30,
+                    margin: const EdgeInsets.only(bottom: 0),
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      itemCount: categories.length + 1,
+                      itemBuilder: (context, index) {
+                        final isAll = index == 0;
+                        final cat = isAll ? null : categories[index - 1];
+                        final id = isAll ? 'All' : cat!.id;
+                        final name = isAll ? 'All' : cat!.name;
+                        final isSelected = _selectedCategory == id;
+
+                        return Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedCategory = id;
+                                    _applyFilter();
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
                                     color: isSelected
                                         ? primaryColor
-                                        : primaryColor.withOpacity(0.3),
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? primaryColor
+                                          : primaryColor.withOpacity(0.3),
+                                    ),
                                   ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  name,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : primaryColor,
-                                    fontWeight: FontWeight.w600,
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : primaryColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          )
-                          .animate()
-                          .fadeIn(delay: (100 * index).ms, duration: 400.ms)
-                          .slideX(begin: -0.2);
-                    },
-                  ),
-                ),
+                            )
+                            .animate()
+                            .fadeIn(delay: (100 * index).ms, duration: 400.ms)
+                            .slideX(begin: -0.2);
+                      },
+                    ),
+                  );
+                },
+              ),
 
               // --- Grid View for Items/Tickets ---
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(left: 10.0, right: 10.0),
                   child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        sh10,
-                        if (_loadingCategories || _loadingProducts)
-                          ShimmerHelper.buildProductGridShimmer(
-                            context: context,
-                          )
-                        else if (_filteredProducts.isEmpty)
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight: mq.height * 0.6,
-                            ),
-                            child: const Center(
-                              child: Text("No products found"),
-                            ),
-                          )
-                        else
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              return GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount:
-                                          ResponsiveHelper.isMobile(context)
-                                          ? 3
-                                          : ResponsiveHelper.isTablet(context)
-                                          ? 5
-                                          : 8,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                      childAspectRatio: 0.75,
-                                    ),
-                                itemCount: _filteredProducts.length,
-                                itemBuilder: (context, index) {
-                                  final product = _filteredProducts[index];
-                                  return Builder(
-                                    builder: (itemContext) {
-                                      return InkWell(
-                                        onTap: () {
-                                          final box =
-                                              itemContext.findRenderObject()
-                                                  as RenderBox?;
-                                          if (box == null) return;
+                    child: Consumer<ProductProvider>(
+                      builder: (context, prodProvider, _) {
+                        // Dynamic Filtering
+                        final query = _searchCtr.text.trim().toLowerCase();
+                        List<Product> displayProducts =
+                            (_selectedCategory == 'All')
+                            ? prodProvider.products
+                            : prodProvider.products
+                                  .where(
+                                    (p) => p.categoryId == _selectedCategory,
+                                  )
+                                  .toList();
 
-                                          final startOffset = box.localToGlobal(
-                                            box.size.center(Offset.zero),
-                                          );
+                        if (query.isNotEmpty) {
+                          displayProducts = displayProducts
+                              .where(
+                                (p) => p.name.toLowerCase().contains(query),
+                              )
+                              .toList();
+                        }
 
-                                          if (product.variants != null &&
-                                              product
-                                                  .variants!
-                                                  .options
-                                                  .isNotEmpty) {
-                                            _showVariantSelection(
-                                              context,
-                                              product,
-                                              startOffset,
-                                            );
-                                          } else {
-                                            // Find Tax
-                                            final tax = _taxes.firstWhereOrNull(
-                                              (t) => t.id == product.taxId,
-                                            );
+                        return Column(
+                          children: [
+                            sh10,
+                            if (prodProvider.isLoading &&
+                                prodProvider.products.isEmpty)
+                              ShimmerHelper.buildProductGridShimmer(
+                                context: context,
+                              )
+                            else if (displayProducts.isEmpty)
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: mq.height * 0.6,
+                                ),
+                                child: const Center(
+                                  child: Text("No products found"),
+                                ),
+                              )
+                            else
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return GridView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount:
+                                              ResponsiveHelper.isMobile(context)
+                                              ? 3
+                                              : ResponsiveHelper.isTablet(
+                                                  context,
+                                                )
+                                              ? 5
+                                              : 8,
+                                          crossAxisSpacing: 10,
+                                          mainAxisSpacing: 10,
+                                          childAspectRatio: 0.75,
+                                        ),
+                                    itemCount: displayProducts.length,
+                                    itemBuilder: (context, index) {
+                                      final product = displayProducts[index];
+                                      return Builder(
+                                        builder: (itemContext) {
+                                          return InkWell(
+                                            onTap: () {
+                                              final box =
+                                                  itemContext.findRenderObject()
+                                                      as RenderBox?;
+                                              if (box == null) return;
 
-                                            _addToTicket(
-                                              product.name,
-                                              {
-                                                'name': null,
-                                                'price': product.salePrice,
-                                              },
-                                              taxId: product.taxId,
-                                              taxRate: tax?.rate ?? 0.0,
-                                              isTaxIncluded:
-                                                  product.isTaxIncluded,
-                                            );
+                                              final startOffset = box
+                                                  .localToGlobal(
+                                                    box.size.center(
+                                                      Offset.zero,
+                                                    ),
+                                                  );
 
-                                            _flyToCart(
-                                              startOffset,
-                                              product.imageUrl ?? '',
-                                            );
-                                          }
-                                        },
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(
-                                              .90,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withOpacity(
-                                                  0.05,
+                                              if (product.variants != null &&
+                                                  product
+                                                      .variants!
+                                                      .options
+                                                      .isNotEmpty) {
+                                                _showVariantSelection(
+                                                  context,
+                                                  product,
+                                                  startOffset,
+                                                );
+                                              } else {
+                                                // Find Tax
+                                                final tax = _taxes
+                                                    .firstWhereOrNull(
+                                                      (t) =>
+                                                          t.id == product.taxId,
+                                                    );
+
+                                                _addToTicket(
+                                                  product.name,
+                                                  {
+                                                    'name': null,
+                                                    'price': product.salePrice,
+                                                  },
+                                                  taxId: product.taxId,
+                                                  taxRate: tax?.rate ?? 0.0,
+                                                  isTaxIncluded:
+                                                      product.isTaxIncluded,
+                                                );
+
+                                                _flyToCart(
+                                                  startOffset,
+                                                  product.imageUrl ?? '',
+                                                );
+                                              }
+                                            },
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(
+                                                  .90,
                                                 ),
-                                                blurRadius: 4,
-                                                spreadRadius: 1.5,
-                                                offset: const Offset(0, 3),
-                                              ),
-                                            ],
-                                            border: Border.all(
-                                              color: primaryColor.withOpacity(
-                                                0.15,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              // --- Image Section ---
-                                              Expanded(
-                                                flex: 6,
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    8.0,
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.05),
+                                                    blurRadius: 4,
+                                                    spreadRadius: 1.5,
+                                                    offset: const Offset(0, 3),
                                                   ),
-                                                  child: ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                    child:
-                                                        product.imageUrl == null
-                                                        ? Container(
-                                                            width:
-                                                                double.infinity,
-                                                            color: primaryColor
-                                                                .withOpacity(
-                                                                  0.05,
-                                                                ),
-                                                            child: Icon(
-                                                              Icons
-                                                                  .fastfood_outlined,
-                                                              color: primaryColor
-                                                                  .withOpacity(
-                                                                    0.3,
-                                                                  ),
-                                                              size: 30,
+                                                ],
+                                                border: Border.all(
+                                                  color: primaryColor
+                                                      .withOpacity(0.15),
+                                                ),
+                                              ),
+                                              child: Column(
+                                                children: [
+                                                  // --- Image Section ---
+                                                  Expanded(
+                                                    flex: 6,
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            8.0,
+                                                          ),
+                                                      child: ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
                                                             ),
-                                                          )
-                                                        : CachedNetworkImage(
-                                                            imageUrl: product
-                                                                .imageUrl!,
-                                                            width:
-                                                                double.infinity,
-                                                            fit: BoxFit.cover,
-                                                            placeholder: (_, __) =>
-                                                                ShimmerHelper.rectangular(
+                                                        child:
+                                                            product.imageUrl ==
+                                                                null
+                                                            ? Container(
+                                                                width: double
+                                                                    .infinity,
+                                                                color: primaryColor
+                                                                    .withOpacity(
+                                                                      0.05,
+                                                                    ),
+                                                                child: Icon(
+                                                                  Icons
+                                                                      .fastfood_outlined,
+                                                                  color: primaryColor
+                                                                      .withOpacity(
+                                                                        0.3,
+                                                                      ),
+                                                                  size: 30,
+                                                                ),
+                                                              )
+                                                            : CachedNetworkImage(
+                                                                imageUrl: product
+                                                                    .imageUrl!,
+                                                                width: double
+                                                                    .infinity,
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                                placeholder: (_, __) => ShimmerHelper.rectangular(
                                                                   width: double
                                                                       .infinity,
                                                                   height: double
@@ -553,87 +556,96 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                                                         ),
                                                                   ),
                                                                 ),
-                                                            errorWidget:
-                                                                (
-                                                                  context,
-                                                                  url,
-                                                                  err,
-                                                                ) => Container(
-                                                                  color: primaryColor
-                                                                      .withOpacity(
-                                                                        0.05,
+                                                                errorWidget:
+                                                                    (
+                                                                      context,
+                                                                      url,
+                                                                      err,
+                                                                    ) => Container(
+                                                                      color: primaryColor
+                                                                          .withOpacity(
+                                                                            0.05,
+                                                                          ),
+                                                                      child: const Icon(
+                                                                        Icons
+                                                                            .error_outline,
+                                                                        color: Colors
+                                                                            .red,
+                                                                        size:
+                                                                            20,
                                                                       ),
-                                                                  child: const Icon(
-                                                                    Icons
-                                                                        .error_outline,
-                                                                    color: Colors
-                                                                        .red,
-                                                                    size: 20,
-                                                                  ),
-                                                                ),
-                                                          ),
+                                                                    ),
+                                                              ),
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
-                                              ),
 
-                                              // --- Info Section ---
-                                              Expanded(
-                                                flex: 4,
-                                                child: Padding(
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                        6,
-                                                        0,
-                                                        6,
-                                                        8,
+                                                  // --- Info Section ---
+                                                  Expanded(
+                                                    flex: 4,
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.fromLTRB(
+                                                            6,
+                                                            0,
+                                                            6,
+                                                            8,
+                                                          ),
+                                                      child: Column(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .spaceBetween,
+                                                        children: [
+                                                          Text(
+                                                            product.name,
+                                                            maxLines: 2,
+                                                            textAlign: TextAlign
+                                                                .center,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color: primaryColor
+                                                                  .withOpacity(
+                                                                    0.9,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          Text(
+                                                            '₹${product.salePrice}',
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                              color:
+                                                                  primaryColor,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
-                                                  child: Column(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .spaceBetween,
-                                                    children: [
-                                                      Text(
-                                                        product.name,
-                                                        maxLines: 2,
-                                                        textAlign:
-                                                            TextAlign.center,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: primaryColor
-                                                              .withOpacity(0.9),
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        '₹${product.salePrice}',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          color: primaryColor,
-                                                        ),
-                                                      ),
-                                                    ],
+                                                    ),
                                                   ),
-                                                ),
+                                                ],
                                               ),
-                                            ],
-                                          ),
-                                        ),
-                                      ).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.2, duration: 400.ms);
+                                            ),
+                                          ).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.2, duration: 400.ms);
+                                        },
+                                      );
                                     },
                                   );
                                 },
-                              );
-                            },
-                          ),
-                        total <= 0
-                            ? const SizedBox(height: 30)
-                            : const SizedBox(height: 120),
-                      ],
+                              ),
+                            total <= 0
+                                ? const SizedBox(height: 30)
+                                : const SizedBox(height: 120),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),

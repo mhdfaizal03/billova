@@ -108,6 +108,50 @@ class ApiClient {
     }
   }
 
+  // ───────── MULTIPART (FILE UPLOAD) ─────────
+  static Future<dynamic> multipart(
+    String method,
+    String endpoint, {
+    Map<String, dynamic>? body,
+    File? file,
+    String fileField = 'image',
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl$endpoint');
+      print('API MULTIPART $method: $uri');
+
+      final request = http.MultipartRequest(method.toUpperCase(), uri);
+      final headers = await _headers();
+      request.headers.addAll(headers);
+
+      if (body != null) {
+        body.forEach((key, value) {
+          if (value is Map || value is List) {
+            request.fields[key] = jsonEncode(value);
+          } else if (value != null) {
+            request.fields[key] = value.toString();
+          }
+        });
+      }
+
+      if (file != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath(fileField, file.path),
+        );
+      }
+
+      final streamedResponse = await request.send().timeout(timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      return _processResponse(response);
+    } on SocketException {
+      throw NetworkException('No internet connection');
+    } on http.ClientException {
+      throw NetworkException('Unable to reach server');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // ───────── RESPONSE HANDLER ─────────
   static dynamic _processResponse(http.Response response) {
     print('Response Status: ${response.statusCode}');
@@ -116,6 +160,9 @@ class ApiClient {
     final body = response.body.isNotEmpty ? jsonDecode(response.body) : null;
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (body != null && body is Map && body.containsKey('data')) {
+        return body;
+      }
       return body;
     } else {
       String message = 'Something went wrong';

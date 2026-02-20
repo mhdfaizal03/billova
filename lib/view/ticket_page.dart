@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:billova/models/model/models/ticket_item_model.dart';
 import 'package:billova/models/model/models/order_model.dart';
-import 'package:billova/utils/local_Storage/sales_local_store.dart';
-import 'package:billova/utils/local_Storage/settings_local_store.dart';
+import 'package:billova/data/services/sales_service.dart';
+import 'package:billova/data/services/settings_service.dart';
 import 'package:billova/utils/networks/printer_helper.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
@@ -379,7 +379,7 @@ class _TicketPageState extends State<TicketPage> {
   }
 
   Future<void> _showReceiptPreview() async {
-    final store = await SettingsLocalStore.loadStoreDetails();
+    final store = await SettingsService.loadStoreDetails();
 
     showDialog(
       context: context,
@@ -506,8 +506,8 @@ class _TicketPageState extends State<TicketPage> {
   }
 
   Future<void> _showPrinterSelection(OrderModel order) async {
-    final settings = await SettingsLocalStore.loadPrinterSettings();
-    final btDevice = await SettingsLocalStore.loadBluetoothDevice();
+    final settings = await SettingsService.loadPrinterSettings();
+    final btDevice = await SettingsService.loadBluetoothDevice();
 
     Get.bottomSheet(
       Container(
@@ -563,7 +563,7 @@ class _TicketPageState extends State<TicketPage> {
       printed = await PrinterHelper.printViaBluetooth(order);
     }
 
-    await SalesLocalStore.saveOrder(order);
+    await SalesService.saveOrder(order);
 
     if (printed) {
       CustomSnackBar.showSuccess(context, "Payment Success - Receipt printed");

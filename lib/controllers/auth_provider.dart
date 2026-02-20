@@ -6,9 +6,6 @@ import 'package:billova/models/model/auth_models/login_request.dart';
 import 'package:billova/models/model/auth_models/signup_request.dart';
 import 'package:billova/models/model/auth_models/otp_verify_request.dart';
 import 'package:billova/utils/local_Storage/token_storage.dart';
-import 'package:billova/utils/local_Storage/product_local_store.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
-import 'package:billova/utils/local_Storage/tax_local_store.dart';
 import 'package:get/get.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -97,9 +94,6 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _token = null;
     await TokenStorage.clearAll();
-    await ProductLocalStore.clear();
-    await CategoryLocalStore.clear();
-    await TaxLocalStore.clear();
     notifyListeners();
   }
 }
