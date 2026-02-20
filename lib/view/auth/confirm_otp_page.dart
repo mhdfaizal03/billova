@@ -1,9 +1,7 @@
 import 'dart:async';
 
+import 'package:billova/controllers/auth_provider.dart';
 import 'package:billova/main.dart';
-import 'package:billova/models/model/auth_models/otp_verify_request.dart';
-import 'package:billova/models/model/auth_models/resend_otp_request.dart';
-import 'package:billova/models/services/auth_service.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
@@ -12,6 +10,7 @@ import 'package:billova/view/auth/login_page.dart';
 import 'package:billova/view/auth/select_auth_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:provider/provider.dart';
 
 class ConfirmOtpPage extends StatefulWidget {
   final String phoneNumber;
@@ -69,37 +68,27 @@ class _ConfirmOtpPageState extends State<ConfirmOtpPage> {
         context: context,
         message: 'Please enter 6-digit OTP',
       );
-      // ScaffoldMessenger.of(
-      //   context,
-      // ).showSnackBar(const SnackBar(content: Text('Please enter 6-digit OTP')));
       return;
     }
 
     setState(() => isVerifyingOtp = true);
 
-    Future.delayed(Duration(milliseconds: 2000), () async {
-      final response = await AuthService.verifySignupOtp(
-        OtpVerifyRequest(
-          phoneNumber: widget.phoneNumber,
-          verificationCode: otpCode,
-        ),
+    try {
+      final response = await context.read<AuthProvider>().verifyOtp(
+        widget.phoneNumber,
+        otpCode,
       );
 
       if (!mounted) return;
-      setState(() => isVerifyingOtp = false);
 
       /// ✅ BACKEND CONFIRMS VIA MESSAGE
-      if (response.message.toLowerCase().contains(
-        'Verification successful'.toLowerCase(),
-      )) {
+      if (response.success ||
+          response.message.toLowerCase().contains('verification successful')) {
         CustomSnackBar.show(
           color: AppColors().browcolor,
           context: context,
           message: 'OTP verified successfully',
         );
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('OTP verified successfully')),
-        // );
         Get.offAll(() => LoginPage());
       } else {
         CustomSnackBar.show(
@@ -107,11 +96,10 @@ class _ConfirmOtpPageState extends State<ConfirmOtpPage> {
           context: context,
           message: response.message,
         );
-        // ScaffoldMessenger.of(
-        //   context,
-        // ).showSnackBar(SnackBar(content: Text(response.message)));
       }
-    });
+    } finally {
+      if (mounted) setState(() => isVerifyingOtp = false);
+    }
   }
 
   /// ---------------- RESEND OTP ----------------
@@ -120,26 +108,29 @@ class _ConfirmOtpPageState extends State<ConfirmOtpPage> {
 
     setState(() => isSendingOtp = true);
 
-    final response = await AuthService.sendSignupOtp(
-      ResendOtpRequest(phoneNumber: widget.phoneNumber),
-    );
-
-    if (!mounted) return;
-    setState(() => isSendingOtp = false);
-
-    if (response.message.toLowerCase().contains('sent')) {
-      startOtpTimer();
-      CustomSnackBar.show(
-        color: AppColors().browcolor,
-        context: context,
-        message: 'OTP resent',
+    try {
+      final response = await context.read<AuthProvider>().resendOtp(
+        widget.phoneNumber,
       );
-    } else {
-      CustomSnackBar.show(
-        color: AppColors().browcolor,
-        context: context,
-        message: response.message,
-      );
+
+      if (!mounted) return;
+
+      if (response.success || response.message.toLowerCase().contains('sent')) {
+        startOtpTimer();
+        CustomSnackBar.show(
+          color: AppColors().browcolor,
+          context: context,
+          message: 'OTP resent',
+        );
+      } else {
+        CustomSnackBar.show(
+          color: AppColors().browcolor,
+          context: context,
+          message: response.message,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSendingOtp = false);
     }
   }
 

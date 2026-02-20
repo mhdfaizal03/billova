@@ -1,21 +1,20 @@
+import 'package:billova/controllers/category_provider.dart';
+import 'package:billova/controllers/product_provider.dart';
+import 'package:billova/controllers/tax_provider.dart';
 import 'package:billova/models/model/product_models/product_model.dart';
-import 'package:billova/models/services/product_service.dart';
-import 'package:billova/models/model/category_models/category_model.dart';
 import 'package:billova/models/model/tax_models/tax_model.dart';
-import 'package:billova/models/services/category_services.dart';
-import 'package:billova/models/services/tax_service.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
-import 'package:billova/utils/local_Storage/category_local_store.dart';
-import 'package:billova/utils/local_Storage/tax_local_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
+import 'package:provider/provider.dart';
 
 class AddEditProductPage extends StatefulWidget {
   final Product? product;
@@ -41,38 +40,46 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
   final _varRateController = TextEditingController();
 
   // State
-  bool _isLoading = false;
-
-  // Dropdown Data
-  List<Category> _categories = [];
-  List<Tax> _taxes = [];
   List<VariantOption> _variants = [];
   File? _imageFile;
   String? _selectedCategoryId;
   String? _selectedTaxId;
-  bool _isLoadingData = true;
 
-  // Track if user manually changed selection to prevent overwriting with original on refresh
-  bool _catChanged = false;
-  bool _taxChanged = false;
+  // Track if user manually changed selection
+  bool _isImageDeleted = false;
+  bool _isTaxIncluded = false;
 
   @override
   void initState() {
     super.initState();
     _loadDependencies();
+    _salePriceController.addListener(() => setState(() {}));
+
     if (widget.product != null) {
       _nameController.text = widget.product!.name;
       _remakesController.text = widget.product!.remakes;
-      _mrpController.text = widget.product!.mrp.toString();
-      _salePriceController.text = widget.product!.salePrice.toString();
-      _purchasePriceController.text = widget.product!.purchasePrice.toString();
-      _stockController.text = widget.product!.stockQuantity.toString();
+      _mrpController.text = widget.product!.mrp?.toString() ?? '';
+      _salePriceController.text = widget.product!.salePrice?.toString() ?? '';
+      _purchasePriceController.text =
+          widget.product!.purchasePrice?.toString() ?? '';
+      _stockController.text = widget.product!.stockQuantity?.toString() ?? '';
+
       _selectedCategoryId = widget.product!.categoryId;
       _selectedTaxId = widget.product!.taxId;
+      _isTaxIncluded = widget.product!.isTaxIncluded;
+
       if (widget.product!.variants != null) {
         _variants = List.from(widget.product!.variants!.options);
       }
     }
+  }
+
+  Future<void> _loadDependencies() async {
+    // Fetch data via Providers
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CategoryProvider>().fetchCategories();
+      context.read<TaxProvider>().fetchTaxes();
+    });
   }
 
   void _addVariant() {
@@ -108,150 +115,182 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
     if (pickedFile != null) {
       setState(() {
         _imageFile = File(pickedFile.path);
+        _isImageDeleted = false;
       });
     }
   }
 
-  Future<void> _loadDependencies() async {
-    // 1. CACHE FIRST (Fast load)
-    try {
-      final localCats = await CategoryLocalStore.loadAll();
-      final localTaxes = await TaxLocalStore.loadAll();
-      if (mounted && (localCats.isNotEmpty || localTaxes.isNotEmpty)) {
-        _updateLists(localCats, localTaxes);
-      }
-    } catch (_) {
-      // Ignore cache errors, wait for network
-    }
-
-    // 2. NETWORK (Fresh load)
-    try {
-      final cats = await CategoryService.fetchCategories();
-      final txs = await TaxService.fetchTaxes();
-
-      if (mounted) {
-        _updateLists(cats, txs);
-      }
-    } catch (e) {
-      if (mounted) {
-        // If we have data from cache, don't show full error unless cache also failed (empty list)
-        if (_categories.isEmpty && _taxes.isEmpty) {
-          setState(() => _isLoadingData = false);
-          CustomSnackBar.show(
-            context: context,
-            message: 'Failed to load data: $e',
-            color: Colors.red,
-          );
-        } else {
-          // Silent error if we have cache, or show toast
-          print('Network refresh failed: $e');
-        }
-      }
-    }
+  void _removeImage() {
+    setState(() {
+      _imageFile = null;
+      _isImageDeleted = true;
+    });
   }
 
-  void _updateLists(List<Category> cats, List<Tax> txs) {
-    setState(() {
-      _categories = cats;
-      _taxes = txs;
+  Future<void> _showAddCategoryDialog() async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Category'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Category Name'),
+          textCapitalization: TextCapitalization.words,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+              Navigator.pop(ctx);
 
-      bool isEdit = widget.product != null;
+              try {
+                final success = await context
+                    .read<CategoryProvider>()
+                    .createCategory(name, isActive: true);
 
-      // ── CATEGORY SELECTION LOGIC ──
-      // 1. If not changed by user AND IS EDITING AND original ID is in new list, Use Original.
-      if (!_catChanged &&
-          isEdit &&
-          _categories.any((c) => c.id == widget.product!.categoryId)) {
-        _selectedCategoryId = widget.product!.categoryId;
-      }
-      // 2. Else if current selection is valid, Keep it.
-      else if (_selectedCategoryId != null &&
-          _categories.any((c) => c.id == _selectedCategoryId)) {
-        // Keep current
-      }
-      // 3. Else Default to First (or null if empty)
-      else if (_categories.isNotEmpty) {
-        _selectedCategoryId = _categories.first.id;
-      } else {
-        _selectedCategoryId = null;
-      }
+                if (success && mounted) {
+                  // Try to find the new category to select it
+                  try {
+                    final cats = context.read<CategoryProvider>().categories;
+                    final newCat = cats.firstWhere((c) => c.name == name);
+                    setState(() {
+                      _selectedCategoryId = newCat.id;
+                    });
+                  } catch (_) {}
 
-      // ── TAX SELECTION LOGIC ──
-      if (!_taxChanged &&
-          isEdit &&
-          _taxes.any((t) => t.id == widget.product!.taxId)) {
-        _selectedTaxId = widget.product!.taxId;
-      } else if (_selectedTaxId != null &&
-          _taxes.any((t) => t.id == _selectedTaxId)) {
-        // Keep current
-      } else if (_taxes.isNotEmpty) {
-        _selectedTaxId = _taxes.first.id;
-      } else {
-        _selectedTaxId = null;
-      }
+                  CustomSnackBar.show(
+                    context: context,
+                    message: 'Category added',
+                    color: Colors.green,
+                  );
+                }
+              } catch (e) {
+                CustomSnackBar.show(
+                  context: context,
+                  message: 'Failed to add category: $e',
+                  color: Colors.red,
+                );
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
 
-      _isLoadingData = false;
-    });
+  Future<void> _showAddTaxDialog() async {
+    final nameController = TextEditingController();
+    final rateController = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Tax'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Tax Name'),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: rateController,
+              decoration: const InputDecoration(labelText: 'Rate (%)'),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final rate = double.tryParse(rateController.text.trim());
+              if (name.isEmpty || rate == null) return;
+              Navigator.pop(ctx);
+
+              try {
+                final newTax = await context.read<TaxProvider>().createTax(
+                  name: name,
+                  rate: rate,
+                  isActive: true,
+                );
+
+                if (newTax != null && mounted) {
+                  setState(() {
+                    _selectedTaxId = newTax.id;
+                  });
+                  CustomSnackBar.show(
+                    context: context,
+                    message: 'Tax added',
+                    color: Colors.green,
+                  );
+                }
+              } catch (e) {
+                CustomSnackBar.show(
+                  context: context,
+                  message: 'Failed to add tax: $e',
+                  color: Colors.red,
+                );
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedCategoryId == null) {
-      CustomSnackBar.show(
-        context: context,
-        message: 'Please select a category',
-        color: Colors.red,
-      );
-      return;
-    }
-    if (_selectedTaxId == null) {
-      CustomSnackBar.show(
-        context: context,
-        message: 'Please select a tax',
-        color: Colors.red,
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
+    final provider = context.read<ProductProvider>();
 
     try {
       final newProduct = Product(
         id: widget.product?.id,
         name: _nameController.text.trim(),
         remakes: _remakesController.text.trim(),
-        mrp: double.tryParse(_mrpController.text) ?? 0,
-        salePrice: double.tryParse(_salePriceController.text) ?? 0,
-        purchasePrice: double.tryParse(_purchasePriceController.text) ?? 0,
-        stockQuantity: int.tryParse(_stockController.text) ?? 0,
-        categoryId: _selectedCategoryId!,
-        taxId: _selectedTaxId!,
+        mrp: double.tryParse(_mrpController.text),
+        salePrice: double.tryParse(_salePriceController.text),
+        purchasePrice: double.tryParse(_purchasePriceController.text),
+        stockQuantity: int.tryParse(_stockController.text),
+        categoryId: _selectedCategoryId ?? "",
+        taxId: _selectedTaxId ?? "",
+        isTaxIncluded: _isTaxIncluded,
         variants: _variants.isNotEmpty
             ? ProductVariants(options: _variants)
             : null,
+        imageUrl: _isImageDeleted ? "" : widget.product?.imageUrl,
       );
 
+      bool success = false;
       if (widget.product == null) {
-        await ProductService.createProduct(newProduct, imageFile: _imageFile);
-        if (mounted) {
-          CustomSnackBar.show(
-            context: context,
-            message: 'Product added successfully',
-            color: Colors.green,
-          );
-          Navigator.pop(context, true);
-        }
+        final result = await provider.createProduct(
+          newProduct,
+          imageFile: _imageFile,
+        );
+        success = result != null;
       } else {
-        await ProductService.updateProduct(newProduct, imageFile: _imageFile);
-        if (mounted) {
-          CustomSnackBar.show(
-            context: context,
-            message: 'Product updated successfully',
-            color: Colors.green,
-          );
-          Navigator.pop(context, true);
-        }
+        success = await provider.updateProduct(
+          newProduct,
+          imageFile: _imageFile,
+        );
+      }
+
+      if (success && mounted) {
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -261,8 +300,6 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
           color: Colors.red,
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -282,6 +319,13 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
   @override
   Widget build(BuildContext context) {
     final primary = AppColors().browcolor;
+    final catProvider = context.watch<CategoryProvider>();
+    final taxProvider = context.watch<TaxProvider>();
+    final prodProvider = context.watch<ProductProvider>();
+
+    // Prepare lists
+    final categories = catProvider.categories;
+    final taxes = taxProvider.taxes;
 
     return Scaffold(
       backgroundColor: primary,
@@ -294,8 +338,10 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
-      body: _isLoadingData
-          ? Center(child: CircularProgressIndicator(color: Colors.white))
+      body:
+          (catProvider.isLoading || taxProvider.isLoading) &&
+              (categories.isEmpty && taxes.isEmpty)
+          ? ShimmerHelper.buildFormShimmer(context)
           : CurveScreen(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -315,55 +361,92 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                               children:
                                   [
                                         Center(
-                                          child: GestureDetector(
-                                            onTap: _pickImage,
-                                            child: Container(
-                                              height: 120,
-                                              width: 120,
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(
-                                                  0.9,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                image: _imageFile != null
-                                                    ? DecorationImage(
-                                                        image: FileImage(
-                                                          _imageFile!,
+                                          child: Stack(
+                                            children: [
+                                              GestureDetector(
+                                                onTap: _pickImage,
+                                                child: Container(
+                                                  height: 120,
+                                                  width: 120,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withOpacity(0.9),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          16,
                                                         ),
-                                                        fit: BoxFit.cover,
-                                                      )
-                                                    : (widget
-                                                                  .product
-                                                                  ?.imageUrl !=
-                                                              null
-                                                          ? DecorationImage(
-                                                              image: NetworkImage(
-                                                                widget
-                                                                    .product!
-                                                                    .imageUrl!,
-                                                              ),
-                                                              fit: BoxFit.cover,
-                                                            )
-                                                          : null),
+                                                    image: _imageFile != null
+                                                        ? DecorationImage(
+                                                            image: FileImage(
+                                                              _imageFile!,
+                                                            ),
+                                                            fit: BoxFit.cover,
+                                                          )
+                                                        : (!_isImageDeleted &&
+                                                              widget
+                                                                      .product
+                                                                      ?.imageUrl !=
+                                                                  null)
+                                                        ? DecorationImage(
+                                                            image: NetworkImage(
+                                                              widget
+                                                                  .product!
+                                                                  .imageUrl!,
+                                                            ),
+                                                            fit: BoxFit.cover,
+                                                          )
+                                                        : null,
+                                                  ),
+                                                  child:
+                                                      (_imageFile == null &&
+                                                          (_isImageDeleted ||
+                                                              widget
+                                                                      .product
+                                                                      ?.imageUrl ==
+                                                                  null))
+                                                      ? Icon(
+                                                          Icons
+                                                              .add_a_photo_outlined,
+                                                          size: 40,
+                                                          color:
+                                                              Colors.grey[400],
+                                                        )
+                                                      : null,
+                                                ),
                                               ),
-                                              child:
-                                                  _imageFile == null &&
+                                              if (_imageFile != null ||
+                                                  (!_isImageDeleted &&
                                                       widget
                                                               .product
-                                                              ?.imageUrl ==
-                                                          null
-                                                  ? Icon(
-                                                      Icons
-                                                          .add_a_photo_outlined,
-                                                      size: 40,
-                                                      color: Colors.grey[400],
-                                                    )
-                                                  : null,
-                                            ),
+                                                              ?.imageUrl !=
+                                                          null))
+                                                Positioned(
+                                                  top: 0,
+                                                  right: 0,
+                                                  child: GestureDetector(
+                                                    onTap: _removeImage,
+                                                    child: Container(
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.red
+                                                            .withOpacity(0.8),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            4,
+                                                          ),
+                                                      child: const Icon(
+                                                        Icons.close,
+                                                        color: Colors.white,
+                                                        size: 16,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
                                         ),
-                                        SizedBox(height: 20),
+                                        const SizedBox(height: 20),
                                         TextFormField(
                                           controller: _nameController,
                                           textCapitalization:
@@ -396,9 +479,6 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                                 decoration: _inputDeco(
                                                   'Sale Price',
                                                 ),
-                                                validator: (v) => v!.isEmpty
-                                                    ? 'Required'
-                                                    : null,
                                               ),
                                             ),
                                             const SizedBox(width: 10),
@@ -408,9 +488,6 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                                 keyboardType:
                                                     TextInputType.number,
                                                 decoration: _inputDeco('MRP'),
-                                                validator: (v) => v!.isEmpty
-                                                    ? 'Required'
-                                                    : null,
                                               ),
                                             ),
                                           ],
@@ -427,9 +504,6 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                                 decoration: _inputDeco(
                                                   'Purchase Price',
                                                 ),
-                                                validator: (v) => v!.isEmpty
-                                                    ? 'Required'
-                                                    : null,
                                               ),
                                             ),
                                             const SizedBox(width: 10),
@@ -441,9 +515,6 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                                 decoration: _inputDeco(
                                                   'Stock Qty',
                                                 ),
-                                                validator: (v) => v!.isEmpty
-                                                    ? 'Required'
-                                                    : null,
                                               ),
                                             ),
                                           ],
@@ -471,22 +542,45 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                           ),
                                           child: DropdownButtonHideUnderline(
                                             child: DropdownButton<String>(
-                                              value: _selectedCategoryId,
+                                              value: _verifyId(
+                                                _selectedCategoryId,
+                                                categories,
+                                              ),
                                               isExpanded: true,
                                               hint: const Text(
                                                 "Select Category",
                                               ),
-                                              items: _categories.map((c) {
-                                                return DropdownMenuItem(
-                                                  value: c.id,
-                                                  child: Text(c.name),
-                                                );
-                                              }).toList(),
+                                              items: [
+                                                const DropdownMenuItem(
+                                                  value: "",
+                                                  child: Text("None"),
+                                                ),
+                                                ...categories.map((c) {
+                                                  return DropdownMenuItem(
+                                                    value: c.id,
+                                                    child: Text(c.name),
+                                                  );
+                                                }),
+                                                const DropdownMenuItem(
+                                                  value: "new",
+                                                  child: Text(
+                                                    "New Category",
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.blue,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                               onChanged: (val) {
-                                                setState(() {
-                                                  _selectedCategoryId = val;
-                                                  _catChanged = true;
-                                                });
+                                                if (val == "new") {
+                                                  _showAddCategoryDialog();
+                                                } else {
+                                                  setState(() {
+                                                    _selectedCategoryId = val;
+                                                  });
+                                                }
                                               },
                                             ),
                                           ),
@@ -515,27 +609,77 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                           ),
                                           child: DropdownButtonHideUnderline(
                                             child: DropdownButton<String>(
-                                              value: _selectedTaxId,
+                                              value: _verifyId(
+                                                _selectedTaxId,
+                                                taxes,
+                                              ),
                                               isExpanded: true,
                                               hint: const Text("Select Tax"),
-                                              items: _taxes.map((t) {
-                                                return DropdownMenuItem(
-                                                  value: t.id,
+                                              items: [
+                                                const DropdownMenuItem(
+                                                  value: "",
+                                                  child: Text("None"),
+                                                ),
+                                                ...taxes.map((t) {
+                                                  return DropdownMenuItem(
+                                                    value: t.id,
+                                                    child: Text(
+                                                      '${t.name} - ${t.rate}%',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }),
+                                                const DropdownMenuItem(
+                                                  value: "new",
                                                   child: Text(
-                                                    '${t.name} (${t.rate}%)',
+                                                    "New Tax",
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.blue,
+                                                    ),
                                                   ),
-                                                );
-                                              }).toList(),
+                                                ),
+                                              ],
                                               onChanged: (val) {
-                                                setState(() {
-                                                  _selectedTaxId = val;
-                                                  _taxChanged = true;
-                                                });
+                                                if (val == "new") {
+                                                  _showAddTaxDialog();
+                                                } else {
+                                                  setState(() {
+                                                    _selectedTaxId = val;
+                                                  });
+                                                }
                                               },
                                             ),
                                           ),
                                         ),
-
+                                        sh10,
+                                        CheckboxListTile(
+                                          value: _isTaxIncluded,
+                                          onChanged: (val) {
+                                            if (val != null) {
+                                              setState(
+                                                () => _isTaxIncluded = val,
+                                              );
+                                            }
+                                          },
+                                          title: const Text(
+                                            "Tax Inclusive",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          activeColor: primary,
+                                          contentPadding: EdgeInsets.zero,
+                                          controlAffinity:
+                                              ListTileControlAffinity.leading,
+                                        ),
+                                        if (_selectedTaxId != null &&
+                                            _selectedTaxId!.isNotEmpty)
+                                          _buildTaxCalculationSummary(taxes),
                                         sh20,
                                         const Text(
                                           "Variants",
@@ -717,7 +861,7 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                         SizedBox(
                                           height: 46,
                                           width: double.infinity,
-                                          child: _isLoading
+                                          child: prodProvider.isLoading
                                               ? Center(
                                                   child:
                                                       CircularProgressIndicator(
@@ -725,7 +869,8 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
                                                       ),
                                                 )
                                               : CustomButtons(
-                                                  onPressed: _isLoading
+                                                  onPressed:
+                                                      prodProvider.isLoading
                                                       ? null
                                                       : _submit,
                                                   text: Text(
@@ -755,6 +900,14 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
     );
   }
 
+  // Ensure selected ID exists in the list to avoid Dropdown errors
+  String? _verifyId(String? id, List<dynamic> items) {
+    if (id == null || id.isEmpty) return null;
+    if (items.any((item) => item.id == id)) return id;
+    // If not found (maybe deleted or strictly not in list), return null or empty if allowed
+    return null;
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -766,5 +919,92 @@ class _AddEditProductPageState extends State<AddEditProductPage> {
     _varNameController.dispose();
     _varRateController.dispose();
     super.dispose();
+  }
+
+  Widget _buildTaxCalculationSummary(List<Tax> taxes) {
+    // 1. Get Rate
+    double rate = 0;
+    try {
+      final tax = taxes.firstWhere((t) => t.id == _selectedTaxId);
+      rate = tax.rate;
+    } catch (_) {}
+
+    if (rate == 0) return const SizedBox.shrink();
+
+    // 2. Get Input Price
+    double inputPrice = double.tryParse(_salePriceController.text) ?? 0;
+
+    // 3. Calculate
+    double basePrice = 0;
+    double taxAmount = 0;
+    double total = 0;
+
+    if (_isTaxIncluded) {
+      // Inclusive: Input is TOTAL
+      total = inputPrice;
+      basePrice = total / (1 + (rate / 100));
+      taxAmount = total - basePrice;
+    } else {
+      // Exclusive: Input is BASE
+      basePrice = inputPrice;
+      taxAmount = basePrice * (rate / 100);
+      total = basePrice + taxAmount;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Tax Breakdown (${_isTaxIncluded ? 'Inclusive' : 'Exclusive'})",
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _summaryItem("Base Price", basePrice),
+              _summaryItem("Tax ($rate%)", taxAmount),
+              _summaryItem("Total Payable", total, isTotal: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, double value, {bool isTotal = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value.toStringAsFixed(2),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            color: isTotal ? Colors.black : Colors.black87,
+          ),
+        ),
+      ],
+    );
   }
 }

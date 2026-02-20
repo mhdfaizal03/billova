@@ -2,12 +2,13 @@ class Product {
   final String? id;
   final String name;
   final String remakes; // description
-  final double mrp;
-  final double salePrice;
-  final double purchasePrice;
-  final int stockQuantity;
+  final double? mrp;
+  final double? salePrice;
+  final double? purchasePrice;
+  final int? stockQuantity;
   final String categoryId;
   final String taxId;
+  final bool isTaxIncluded;
   final ProductVariants? variants;
   final String? imageUrl;
 
@@ -15,12 +16,13 @@ class Product {
     this.id,
     required this.name,
     required this.remakes,
-    required this.mrp,
-    required this.salePrice,
-    required this.purchasePrice,
-    required this.stockQuantity,
+    this.mrp,
+    this.salePrice,
+    this.purchasePrice,
+    this.stockQuantity,
     required this.categoryId,
     required this.taxId,
+    this.isTaxIncluded = false,
     this.variants,
     this.imageUrl,
   });
@@ -59,6 +61,8 @@ class Product {
       stockQuantity: (json['stock_quantity'] ?? 0).toInt(),
       categoryId: json['category_id'] ?? '',
       taxId: json['tax_id'] ?? '',
+      isTaxIncluded:
+          json['is_tax_included'] ?? json['is_tax_inclusive'] ?? false,
       variants: parsedVariants,
       imageUrl: json['image'] ?? json['image_url'],
     );
@@ -75,6 +79,7 @@ class Product {
       'stock_quantity': stockQuantity,
       'category_id': categoryId,
       'tax_id': taxId,
+      'is_tax_included': isTaxIncluded,
       if (variants != null)
         'varients': {
           'options': variants!.options.map((v) => v.toJson()).toList(),

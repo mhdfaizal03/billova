@@ -1,14 +1,14 @@
+import 'package:billova/controllers/tax_provider.dart';
 import 'package:billova/models/model/tax_models/tax_model.dart';
-import 'package:billova/models/services/tax_service.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/exceptions/network_exception.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AddEditTaxPage extends StatefulWidget {
   final Tax? tax;
@@ -24,7 +24,7 @@ class _AddEditTaxPageState extends State<AddEditTaxPage> {
   final _formKey = GlobalKey<FormState>();
 
   bool _isActive = true;
-  bool _loading = false;
+  bool _isLoading = false;
 
   bool get _isEdit => widget.tax != null;
 
@@ -37,44 +37,50 @@ class _AddEditTaxPageState extends State<AddEditTaxPage> {
   }
 
   Future<void> _submit() async {
-    if (_loading) return;
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _loading = true);
+    setState(() => _isLoading = true);
 
     final name = _nameCtr.text.trim();
     final rate = double.tryParse(_rateCtr.text.trim()) ?? 0;
+    final provider = context.read<TaxProvider>();
+    bool success;
 
-    try {
-      if (_isEdit) {
-        await TaxService.updateTax(
-          id: widget.tax!.id,
-          name: name,
-          rate: rate,
-          isActive: _isActive,
-        );
+    if (_isEdit) {
+      success = await provider.updateTax(
+        id: widget.tax!.id,
+        name: name,
+        rate: rate,
+        isActive: _isActive,
+      );
+    } else {
+      final newTax = await provider.createTax(
+        name: name,
+        rate: rate,
+        isActive: _isActive,
+      );
+      success = newTax != null;
+    }
 
-        if (mounted) Navigator.pop(context, 'updated');
-        return;
-      }
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
-      await TaxService.createTax(name: name, rate: rate, isActive: _isActive);
-
-      if (mounted) Navigator.pop(context, 'added');
-    } on NetworkException catch (e) {
+    if (success) {
+      Navigator.pop(context, _isEdit ? 'updated' : 'added');
       CustomSnackBar.show(
         context: context,
-        color: Colors.red,
-        message: e.message,
+        message: _isEdit
+            ? 'Tax updated successfully'
+            : 'Tax added successfully',
+        color: Colors.green,
       );
-    } catch (e) {
-      CustomSnackBar.show(
-        context: context,
-        color: Colors.red,
-        message: e.toString(),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } else {
+      // Provider handles error printing, but we can show a general error here if provider returns false
+      // and didn't show its own offline snackbar.
+      // However, provider returns false on any error.
+      // Let's assume provider handles critical errors or we can show generic here.
+      CustomSnackBar.showError(context, 'Operation failed. Please try again.');
     }
   }
 
@@ -125,7 +131,9 @@ class _AddEditTaxPageState extends State<AddEditTaxPage> {
 
                 TextFormField(
                   controller: _rateCtr,
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Tax Rate (%)',
                     hintText: 'Eg: 5',
@@ -194,10 +202,10 @@ class _AddEditTaxPageState extends State<AddEditTaxPage> {
                 SizedBox(
                   height: 46,
                   width: double.infinity,
-                  child: _loading
+                  child: _isLoading
                       ? Center(child: CircularProgressIndicator(color: primary))
                       : CustomButtons(
-                          onPressed: _loading ? null : _submit,
+                          onPressed: _isLoading ? null : _submit,
                           text: Text(_isEdit ? 'Update Tax' : 'Save Tax'),
                         ),
                 ),

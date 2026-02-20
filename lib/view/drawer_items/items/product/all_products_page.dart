@@ -1,19 +1,17 @@
+import 'package:billova/utils/widgets/custom_dialog_box.dart';
+import 'package:get/get.dart';
+import 'package:billova/controllers/product_provider.dart';
 import 'package:billova/models/model/product_models/product_model.dart';
-import 'package:billova/models/services/product_service.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
-import 'package:billova/utils/local_Storage/product_local_store.dart';
-import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
-
 import 'package:billova/view/drawer_items/items/product/add_product_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
-import 'package:get/get.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 
 class AllProductsPage extends StatefulWidget {
   const AllProductsPage({super.key});
@@ -25,87 +23,33 @@ class AllProductsPage extends StatefulWidget {
 class _AllProductsPageState extends State<AllProductsPage> {
   final TextEditingController _searchCtr = TextEditingController();
 
-  List<Product> _products = [];
-  List<Product> _filtered = [];
-  bool _loading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-    _searchCtr.addListener(_applySearch);
-  }
-
-  // ─────────────────────────────────────────────
-  // LOAD
-  // ─────────────────────────────────────────────
-  Future<void> _loadProducts() async {
-    // 1. Load from Local Storage first
-    try {
-      final local = await ProductLocalStore.loadAll();
-      if (mounted && local.isNotEmpty) {
-        setState(() {
-          _products = local;
-          _filtered = local;
-          _loading = false; // Show data immediately
-        });
-      }
-    } catch (_) {
-      // Ignore local load errors
-    }
-
-    // 2. Fetch from Network
-    try {
-      // Only show loading if we didn't have local data
-      if (_products.isEmpty) {
-        setState(() => _loading = true);
-      }
-
-      final list = await ProductService.fetchProducts();
-      if (!mounted) return;
-
-      setState(() {
-        _products = list;
-        _filtered = list;
-      });
-    } catch (_) {
-      // If we have local data, we can ignore network errors silently or show a small toast
-      if (_products.isEmpty && mounted) {
-        if (mounted)
-          CustomSnackBar.showError(context, "Failed to load products");
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // SEARCH
-  // ─────────────────────────────────────────────
-  void _applySearch() {
-    final q = _searchCtr.text.toLowerCase();
-    setState(() {
-      _filtered = _products
-          .where((p) => p.name.toLowerCase().contains(q))
-          .toList();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProductProvider>().fetchProducts();
     });
   }
 
-  // ─────────────────────────────────────────────
-  // ADD / EDIT
-  // ─────────────────────────────────────────────
-  Future<void> _openAddEdit([Product? p]) async {
-    final result = await Get.to(() => AddEditProductPage(product: p));
-
-    if (result == true) {
-      // _submit returns true
-      _loadProducts();
-    }
+  Future<void> _confirmDelete(Product p) async {
+    showDialog(
+      context: context,
+      builder: (_) => CustomDialogBox(
+        title: 'Delete product?',
+        content: 'Are you sure you want to delete ${p.name}?',
+        saveText: 'Delete',
+        onSave: () async {
+          Navigator.pop(context);
+          await context.read<ProductProvider>().deleteProduct(p.id ?? '');
+        },
+      ),
+    );
   }
 
-  // ─────────────────────────────────────────────
-  // UI
-  // ─────────────────────────────────────────────
+  Future<void> _openAddEdit([Product? p]) async {
+    await Get.to(() => AddEditProductPage(product: p));
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = AppColors().browcolor;
@@ -127,7 +71,10 @@ class _AllProductsPageState extends State<AllProductsPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(onPressed: _loadProducts, icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: () => context.read<ProductProvider>().fetchProducts(),
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
       body: CurveScreen(
@@ -141,6 +88,7 @@ class _AllProductsPageState extends State<AllProductsPage> {
                   constraints: const BoxConstraints(maxWidth: 600),
                   child: TextField(
                     controller: _searchCtr,
+                    onChanged: (val) => setState(() {}),
                     decoration: InputDecoration(
                       hintText: 'Search product...',
                       prefixIcon: const Icon(Icons.search),
@@ -158,10 +106,22 @@ class _AllProductsPageState extends State<AllProductsPage> {
 
             /// LIST
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _filtered.isEmpty
-                  ? const Center(
+              child: Consumer<ProductProvider>(
+                builder: (context, provider, _) {
+                  if (provider.isLoading && provider.products.isEmpty) {
+                    return ShimmerHelper.buildHorizontalCardGridShimmer(
+                      context: context,
+                      itemCount: 9,
+                    );
+                  }
+
+                  final query = _searchCtr.text.toLowerCase();
+                  final filtered = provider.products
+                      .where((p) => p.name.toLowerCase().contains(query))
+                      .toList();
+
+                  if (filtered.isEmpty) {
+                    return const Center(
                       child: Text(
                         'No products found',
                         style: TextStyle(
@@ -169,114 +129,130 @@ class _AllProductsPageState extends State<AllProductsPage> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.only(
-                        left: 12,
-                        right: 12,
-                        bottom: 100,
-                      ),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: ResponsiveHelper.isMobile(context)
-                            ? 1
-                            : ResponsiveHelper.isTablet(context)
-                            ? 2
-                            : 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 10,
-                        mainAxisExtent: 80,
-                      ),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) {
-                        final p = _filtered[i];
+                    );
+                  }
 
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(.05),
-                                blurRadius: 4,
+                  return GridView.builder(
+                    padding: const EdgeInsets.only(
+                      left: 12,
+                      right: 12,
+                      bottom: 100,
+                    ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: ResponsiveHelper.isMobile(context)
+                          ? 1
+                          : ResponsiveHelper.isTablet(context)
+                          ? 2
+                          : 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 10,
+                      mainAxisExtent: 80,
+                    ),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final p = filtered[i];
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(.05),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // Image
+                            Container(
+                              width: 50,
+                              height: 50,
+                              margin: const EdgeInsets.only(right: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.grey[200],
                               ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              // Image
-                              Container(
-                                width: 50,
-                                height: 50,
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  color: Colors.grey[200],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: p.imageUrl != null
-                                      ? CachedNetworkImage(
-                                          imageUrl: p.imageUrl!,
-                                          fit: BoxFit.cover,
-                                          placeholder: (_, __) => const Center(
-                                            child: SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child:
+                                    (p.imageUrl != null &&
+                                        p.imageUrl!.isNotEmpty)
+                                    ? CachedNetworkImage(
+                                        imageUrl: p.imageUrl!,
+                                        fit: BoxFit.cover,
+                                        placeholder: (_, __) =>
+                                            ShimmerHelper.rectangular(
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                              shapeBorder:
+                                                  RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
                                             ),
-                                          ),
-                                          errorWidget: (_, __, ___) =>
-                                              const Icon(Icons.error, size: 20),
-                                        )
-                                      : const Icon(
-                                          Icons.shopping_bag_outlined,
-                                          size: 24,
-                                          color: Colors.grey,
-                                        ),
-                                ),
-                              ),
-
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      p.name,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    sh10,
-                                    Text(
-                                      '₹${p.salePrice}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                        errorWidget: (_, __, ___) =>
+                                            const Icon(Icons.error, size: 20),
+                                      )
+                                    : const Icon(
+                                        Icons.shopping_bag_outlined,
+                                        size: 24,
                                         color: Colors.grey,
                                       ),
-                                    ),
-                                  ],
-                                ),
                               ),
+                            ),
 
-                              // Status Toggle removed as it's not in new Product model
-                              /// EDIT (View mostly since update not fully impl in service)
-                              IconButton(
-                                icon: Icon(Icons.edit_outlined, color: primary),
-                                onPressed: () {
-                                  // For now View/Edit logic same
-                                  _openAddEdit(p);
-                                },
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    p.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  sh10,
+                                  Text(
+                                    'Rs ${p.salePrice ?? '-'}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ).animate().fadeIn(delay: (30 * i).ms).slideX(begin: 0.1);
-                      },
-                    ),
+                            ),
+
+                            /// EDIT
+                            IconButton(
+                              icon: Icon(Icons.edit_outlined, color: primary),
+                              onPressed: () => _openAddEdit(p),
+                            ),
+
+                            /// DELETE
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.red,
+                              ),
+                              onPressed: () => _confirmDelete(p),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

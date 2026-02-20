@@ -76,6 +76,8 @@ class ProductService {
       if (imageFile != null) {
         print('ProductService CREATE: Multipart with Image');
         final request = http.MultipartRequest('POST', Uri.parse(_baseUrl));
+        // Remove Content-Type header to let MultipartRequest set it with boundary
+        headers.remove('Content-Type');
         request.headers.addAll(headers);
 
         // Add fields
@@ -160,6 +162,8 @@ class ProductService {
           'PUT',
           Uri.parse('$_baseUrl/${product.id}'),
         );
+        // Remove Content-Type header to let MultipartRequest set it with boundary
+        headers.remove('Content-Type');
         request.headers.addAll(headers);
 
         final jsonMap = product.toJson();
@@ -221,6 +225,26 @@ class ProductService {
         throw Exception('Failed to update product: $e');
       }
       rethrow;
+    }
+  }
+
+  // ───────── DELETE ─────────
+  static Future<void> deleteProduct(String id) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$_baseUrl/$id'),
+        headers: await _headers(),
+      );
+
+      if (res.statusCode != 200) {
+        throw Exception('Delete failed: ${res.statusCode}');
+      }
+
+      await ProductLocalStore.delete(id);
+    } on SocketException {
+      throw NetworkException('No internet connection');
+    } on http.ClientException {
+      throw NetworkException('Unable to reach server');
     }
   }
 }

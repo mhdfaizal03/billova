@@ -12,17 +12,14 @@ import 'package:billova/utils/constants/sizes.dart';
 import 'package:billova/utils/local_Storage/category_local_store.dart';
 import 'package:billova/utils/local_Storage/product_local_store.dart';
 import 'package:billova/utils/local_Storage/tax_local_store.dart';
-// import 'package:billova/utils/networks/internet_helper.dart';
-// import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_home_drawer.dart';
-// import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/view/ticket_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 import 'package:get/get.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -36,21 +33,20 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final GlobalKey _totalKey = GlobalKey();
   final TextEditingController _searchCtr = TextEditingController();
 
-  Offset position = const Offset(20, 500);
-
   List<Product> _products = [];
   List<Product> _filteredProducts = [];
   bool _loadingProducts = true;
-
-  List<TicketItem> ticketItems = [];
-
-  int get total => ticketItems.fold(0, (sum, item) => sum + item.total);
 
   // Mock data for the dropdown
   List<Category> _categories = [];
   List<Tax> _taxes = [];
   String _selectedCategory = 'All';
   bool _loadingCategories = true;
+
+  List<TicketItem> ticketItems = [];
+
+  double get total => ticketItems.fold(0.0, (sum, item) => sum + item.total);
+  int get selectedItemCount => ticketItems.length;
 
   @override
   void initState() {
@@ -66,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   @override
   void didPopNext() {
-    // 🔥 CALLED EVERY TIME YOU COME BACK
     _loadData();
   }
 
@@ -79,8 +74,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   Future<void> _loadData() async {
     // 1. FAST LOAD from Local Storage
-    final localCats =
-        await CategoryLocalStore.loadAll(); // Assuming loadCategories or loadAll
+    final localCats = await CategoryLocalStore.loadAll();
     final localProds = await ProductLocalStore.loadAll();
     final localTaxes = await TaxLocalStore.loadAll();
 
@@ -90,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         _products = localProds;
         _taxes = localTaxes;
 
-        // Show loading ONLY if we have absolutely nothing
         _loadingCategories = localCats.isEmpty;
         _loadingProducts = localProds.isEmpty;
 
@@ -119,9 +112,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         _applyFilter();
       });
     } catch (_) {
-      // If we have local data, we can ignore network errors silently or show a small toast
       if (_products.isEmpty && mounted) {
-        if (mounted) CustomSnackBar.showError(context, "Failed to load data");
+        CustomSnackBar.showError(context, "Failed to load data");
         setState(() {
           _loadingCategories = false;
           _loadingProducts = false;
@@ -134,12 +126,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     setState(() {
       final query = _searchCtr.text.trim().toLowerCase();
 
-      // 1. Filter by Category
       List<Product> temp = (_selectedCategory == 'All')
           ? _products
           : _products.where((p) => p.categoryId == _selectedCategory).toList();
 
-      // 2. Filter by Search Query
       if (query.isNotEmpty) {
         temp = temp.where((p) => p.name.toLowerCase().contains(query)).toList();
       }
@@ -147,8 +137,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       _filteredProducts = temp;
     });
   }
-
-  int get selectedItemCount => ticketItems.length;
 
   @override
   Widget build(BuildContext context) {
@@ -228,18 +216,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                           ),
                           child: Row(
                             children: [
-                              // const SizedBox(width: 18),
-                              // CircleAvatar(
-                              //   radius: 28,
-                              //   backgroundColor: AppColors().browcolor.withOpacity(
-                              //     0.12,
-                              //   ),
-                              //   child: Icon(
-                              //     Icons.receipt_long_rounded,
-                              //     color: AppColors().browcolor,
-                              //     size: 30,
-                              //   ),
-                              // ),
                               const SizedBox(width: 18),
                               Expanded(
                                 child: Column(
@@ -271,8 +247,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                             child: Text(
                                               selectedItemCount.toString(),
                                               style: const TextStyle(
-                                                color: Colors
-                                                    .white, // ⚠️ white for visibility
+                                                color: Colors.white,
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -283,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      '₹$total',
+                                      '₹${total.toStringAsFixed(2)}',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -351,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
               // --- Categories Horizontal List ---
               if (_loadingCategories)
-                const Center(child: CircularProgressIndicator())
+                ShimmerHelper.buildCategoryPillShimmer()
               else
                 Container(
                   height: 30,
@@ -422,7 +397,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       children: [
                         sh10,
                         if (_loadingCategories || _loadingProducts)
-                          const Center(child: CircularProgressIndicator())
+                          ShimmerHelper.buildProductGridShimmer(
+                            context: context,
+                          )
                         else if (_filteredProducts.isEmpty)
                           ConstrainedBox(
                             constraints: BoxConstraints(
@@ -448,8 +425,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                           : 8,
                                       crossAxisSpacing: 10,
                                       mainAxisSpacing: 10,
-                                      childAspectRatio:
-                                          0.75, // 📏 Better height for text
+                                      childAspectRatio: 0.75,
                                     ),
                                 itemCount: _filteredProducts.length,
                                 itemBuilder: (context, index) {
@@ -491,6 +467,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                               },
                                               taxId: product.taxId,
                                               taxRate: tax?.rate ?? 0.0,
+                                              isTaxIncluded:
+                                                  product.isTaxIncluded,
                                             );
 
                                             _flyToCart(
@@ -525,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                           ),
                                           child: Column(
                                             children: [
-                                              // --- Image Section (Fixed Proportion) ---
+                                              // --- Image Section ---
                                               Expanded(
                                                 flex: 6,
                                                 child: Padding(
@@ -562,20 +540,17 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                                             width:
                                                                 double.infinity,
                                                             fit: BoxFit.cover,
-                                                            placeholder:
-                                                                (
-                                                                  _,
-                                                                  __,
-                                                                ) => const Center(
-                                                                  child: SizedBox(
-                                                                    width: 20,
-                                                                    height: 20,
-                                                                    child: CircularProgressIndicator(
-                                                                      strokeWidth:
-                                                                          2,
-                                                                      color: Colors
-                                                                          .grey,
-                                                                    ),
+                                                            placeholder: (_, __) =>
+                                                                ShimmerHelper.rectangular(
+                                                                  width: double
+                                                                      .infinity,
+                                                                  height: double
+                                                                      .infinity,
+                                                                  shapeBorder: RoundedRectangleBorder(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          12,
+                                                                        ),
                                                                   ),
                                                                 ),
                                                             errorWidget:
@@ -601,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                                 ),
                                               ),
 
-                                              // --- Info Section (Fixed Proportion) ---
+                                              // --- Info Section ---
                                               Expanded(
                                                 flex: 4,
                                                 child: Padding(
@@ -675,7 +650,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     Product product,
     Offset startOffset,
   ) {
-    const primary = Color(0xFF6B4226); // Match brand brown
+    const primary = Color(0xFF6B4226);
 
     showModalBottomSheet(
       context: context,
@@ -774,6 +749,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                         {'name': option.optionName, 'price': option.optionRate},
                         taxId: product.taxId,
                         taxRate: tax?.rate ?? 0.0,
+                        isTaxIncluded: product.isTaxIncluded,
                       );
                       _flyToCart(startOffset, product.imageUrl ?? '');
                     },
@@ -844,9 +820,23 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     Map<String, dynamic>? variant, {
     String? taxId,
     double taxRate = 0.0,
+    bool isTaxIncluded = false,
   }) {
     final String? variantName = variant?['name'];
-    final int price = (variant?['price'] as num?)?.toInt() ?? 0;
+    // Price from product/variant is usually the "Sale Price" entered by user.
+    // We need to determine if this includes tax or not.
+    double rawPrice = (variant?['price'] as num?)?.toDouble() ?? 0.0;
+
+    // Calculate Base Price for TicketItem
+    double basePrice;
+    if (isTaxIncluded) {
+      // Inclusive: Sale Price = Base + (Base * Rate/100) = Base * (1 + Rate/100)
+      // Base = Sale Price / (1 + Rate/100)
+      basePrice = rawPrice / (1 + (taxRate / 100));
+    } else {
+      // Exclusive: Sale Price IS Base Price
+      basePrice = rawPrice;
+    }
 
     final index = ticketItems.indexWhere(
       (e) => e.productName == product && e.variantName == variantName,
@@ -860,7 +850,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           TicketItem(
             productName: product,
             variantName: variantName, // null for non-variant
-            price: price,
+            price: basePrice,
             quantity: 1,
             taxId: taxId,
             taxRate: taxRate,
@@ -969,132 +959,3 @@ class _FlyImageState extends State<_FlyImage>
     super.dispose();
   }
 }
-
-// class DraggableFAB extends StatefulWidget {
-//   final VoidCallback onPressed;
-
-//   const DraggableFAB({super.key, required this.onPressed});
-
-//   @override
-//   State<DraggableFAB> createState() => _DraggableFABState();
-// }
-
-// class _DraggableFABState extends State<DraggableFAB> {
-//   // Initial position (you can tweak this)
-//   Offset position = Offset(mq.width * .46, mq.height * .75);
-
-//   // Size of your card (roughly)
-//   final double cardWidth = mq.width / 2;
-//   final double cardHeight = 130;
-
-//   // Call this from AppBar to reset
-//   void resetPosition() {
-//     setState(() {
-//       position = Offset(mq.width * .46, mq.height * .75);
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final size = MediaQuery.of(context).size;
-
-//     return Positioned(
-//       left: position.dx,
-//       top: position.dy,
-//       child: GestureDetector(
-//         // This makes it "drag anywhere"
-//         onPanUpdate: (details) {
-//           setState(() {
-//             double newX = position.dx + details.delta.dx;
-//             double newY = position.dy + details.delta.dy;
-
-//             // clamp inside screen
-//             newX = newX.clamp(0.0, size.width - cardWidth);
-//             newY = newY.clamp(0.0, size.height - cardHeight);
-
-//             position = Offset(newX, newY);
-//           });
-//         },
-//         onTap: widget.onPressed, // optional: still clickable
-//         child: _fab(),
-//       ),
-//     );
-//   }
-
-//   Widget _fab() {
-//     return Padding(
-//       padding: const EdgeInsets.all(12),
-//       child: Card(
-//         elevation: 6,
-//         margin: EdgeInsets.zero,
-//         shape: RoundedRectangleBorder(
-//           borderRadius: BorderRadius.circular(24),
-//         ),
-//         child: Container(
-//           width: mq.width / 2,
-//           height: 130,
-//           decoration: BoxDecoration(
-//             borderRadius: BorderRadius.circular(24),
-//             gradient: LinearGradient(
-//               colors: [
-//                 AppColors().browcolor.withOpacity(0.95),
-//                 AppColors().browcolor.withOpacity(0.8),
-//               ],
-//             ),
-//           ),
-//           child: Container(
-//             margin: const EdgeInsets.all(8),
-//             decoration: BoxDecoration(
-//               borderRadius: BorderRadius.circular(20),
-//               color: Colors.white.withOpacity(0.90),
-//             ),
-//             child: Row(
-//               children: [
-//                 const SizedBox(width: 18),
-//                 CircleAvatar(
-//                   radius: 28,
-//                   backgroundColor: AppColors().browcolor.withOpacity(0.12),
-//                   child: Icon(
-//                     Icons.receipt_long_rounded,
-//                     color: AppColors().browcolor,
-//                     size: 30,
-//                   ),
-//                 ),
-//                 const SizedBox(width: 18),
-//                 Expanded(
-//                   child: Column(
-//                     mainAxisAlignment: MainAxisAlignment.center,
-//                     crossAxisAlignment: CrossAxisAlignment.start,
-//                     children: [
-//                       Text(
-//                         'TOTAL',
-//                         style: TextStyle(
-//                           fontSize: 14,
-//                           letterSpacing: 1.1,
-//                           fontWeight: FontWeight.w600,
-//                           color: AppColors().browcolor,
-//                         ),
-//                       ),
-//                       const SizedBox(height: 6),
-//                       Text(
-//                         '300/-',
-//                         maxLines: 2,
-//                         overflow: TextOverflow.ellipsis,
-//                         style: TextStyle(
-//                           fontSize: 20,
-//                           fontWeight: FontWeight.w900,
-//                           color: AppColors().browcolor,
-//                         ),
-//                       ),
-//                     ],
-//                   ),
-//                 ),
-//                 const SizedBox(width: 18),
-//               ],
-//             ),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }

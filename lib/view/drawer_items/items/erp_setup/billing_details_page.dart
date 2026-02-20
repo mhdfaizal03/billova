@@ -6,6 +6,7 @@ import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_field.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 import 'package:flutter/material.dart';
 
 import 'package:image_picker/image_picker.dart';
@@ -90,7 +91,7 @@ class _BillingDetailsPageState extends State<BillingDetailsPage> {
       ),
       body: CurveScreen(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? ShimmerHelper.buildFormShimmer(context)
             : Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 800),

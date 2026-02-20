@@ -10,6 +10,7 @@ import 'package:billova/view/drawer_items/items/category/add_categories_page.dar
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 
 class AllCategoriesPage extends StatefulWidget {
   const AllCategoriesPage({super.key});
@@ -237,7 +238,15 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> with RouteAware {
             /// LIST
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? ShimmerHelper.buildGridShimmer(
+                      itemCount: 9,
+                      crossAxisCount: ResponsiveHelper.isMobile(context)
+                          ? 1
+                          : ResponsiveHelper.isTablet(context)
+                          ? 2
+                          : 3,
+                      itemHeight: 80,
+                    )
                   : _filtered.isEmpty
                   ? const Center(
                       child: Text(

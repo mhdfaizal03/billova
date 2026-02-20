@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:ui';
+import 'package:billova/utils/widgets/custom_dialog_box.dart';
 import 'package:billova/models/model/models/order_model.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/local_Storage/sales_local_store.dart';
@@ -13,6 +15,7 @@ import 'package:get/get.dart';
 import 'package:billova/utils/networks/printer_helper.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/utils/constants/sizes.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 
 class SalesPage extends StatefulWidget {
   const SalesPage({super.key});
@@ -61,24 +64,13 @@ class _SalesPageState extends State<SalesPage> {
             onPressed: () async {
               final confirm = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Clear History?"),
-                  content: const Text(
-                    "This will delete all sales records permanently.",
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text("No"),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text(
-                        "Yes, Clear",
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
+                builder: (context) => CustomDialogBox(
+                  title: "Clear History?",
+                  content: "This will delete all sales records permanently.",
+                  saveText: "Yes, Clear",
+                  onSave: () {
+                    Navigator.pop(context, true);
+                  },
                 ),
               );
               if (confirm == true) {
@@ -91,7 +83,7 @@ class _SalesPageState extends State<SalesPage> {
       ),
       body: CurveScreen(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? ShimmerHelper.buildListShimmer(itemCount: 8, itemHeight: 110)
             : _orders.isEmpty
             ? const Center(
                 child: Text(
@@ -181,7 +173,7 @@ class _SalesPageState extends State<SalesPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              "₹${order.total}",
+                              "₹${order.total.toStringAsFixed(2)}",
                               style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 18,
@@ -231,92 +223,100 @@ class _SalesPageState extends State<SalesPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.all(20),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (store['logo'] != null && store['logo']!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Image.file(
-                  File(store['logo']!),
-                  height: 50,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            Text(
-              store['name']!.isEmpty ? "BILLOVA POS" : store['name']!,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-
-            const Divider(),
-            ...order.items.map(
-              (item) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        "${item.quantity} x ${item.productName}${item.variantName != null ? ' (${item.variantName})' : ''}",
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text("₹${item.total}"),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Subtotal"),
-                Text(
-                  "₹${order.items.fold(0, (s, i) => s + i.subtotal)}",
-                ), // Using subtotal from ticket item
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Tax"),
-                Text(
-                  "₹${order.items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}",
-                ),
-              ],
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "TOTAL",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  "₹${order.total}",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.all(20),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (store['logo'] != null && store['logo']!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Image.file(
+                    File(store['logo']!),
+                    height: 50,
+                    fit: BoxFit.contain,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: CustomButtons(
-                text: const Text("Re-Print Receipt"),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _showPrinterSelection(order);
-                },
+              Text(
+                store['name']!.isEmpty ? "BILLOVA POS" : store['name']!,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
-            ),
-          ],
+
+              const Divider(),
+              ...order.items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "${item.quantity} x ${item.productName}${item.variantName != null ? ' (${item.variantName})' : ''}",
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text("₹${item.total}"),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Subtotal"),
+                  Text(
+                    "₹${order.items.fold(0.0, (s, i) => s + i.subtotal).toStringAsFixed(2)}",
+                  ), // Using subtotal from ticket item
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Tax"),
+                  Text(
+                    "₹${order.items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}",
+                  ),
+                ],
+              ),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "TOTAL",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    "₹${order.total.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: CustomButtons(
+                  text: const Text("Re-Print Receipt"),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showPrinterSelection(order);
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

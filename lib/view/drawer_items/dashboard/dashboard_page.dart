@@ -7,6 +7,7 @@ import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -103,7 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       body: CurveScreen(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? ShimmerHelper.buildDashboardShimmer(context)
             : RefreshIndicator(
                 onRefresh: _loadAnalytics,
                 child: SingleChildScrollView(

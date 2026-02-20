@@ -85,7 +85,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                 Icons.bar_chart_rounded,
                                 () {
                                   Get.back();
-                                  Get.to(const SalesPage());
+                                  Get.to(() => const SalesPage());
                                 },
                                 "Sales Report",
                                 colors,
@@ -94,7 +94,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                 Icons.inventory_2_rounded,
                                 () {
                                   Get.back();
-                                  Get.to(const RecieptsPage());
+                                  Get.to(() => const RecieptsPage());
                                 },
                                 "Receipts",
                                 colors,
@@ -103,7 +103,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                 Icons.category_rounded,
                                 () {
                                   Get.back();
-                                  Get.to(const ItemsPage());
+                                  Get.to(() => const ItemsPage());
                                 },
                                 "Items",
                                 colors,
@@ -112,7 +112,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                 Icons.tune_rounded,
                                 () {
                                   Get.back();
-                                  Get.to(const SettingsPage());
+                                  Get.to(() => const SettingsPage());
                                 },
                                 "Settings",
                                 colors,
@@ -134,7 +134,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                 Icons.dashboard_customize_rounded,
                                 () {
                                   Get.back();
-                                  Get.to(const DashboardPage());
+                                  Get.to(() => const DashboardPage());
                                 },
                                 "Dashboard",
                                 colors,
@@ -144,7 +144,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                 Icons.support_agent_rounded,
                                 () {
                                   Get.back();
-                                  Get.to(const SupportPage());
+                                  Get.to(() => const SupportPage());
                                 },
                                 "Support",
                                 colors,
@@ -165,7 +165,7 @@ Drawer buildGlassDrawer(BuildContext context) {
                                           await TokenStorage.clearAll();
 
                                           Get.offAll(
-                                            SelectAuthPage(),
+                                            () => const SelectAuthPage(),
                                             transition: Transition.fadeIn,
                                           );
                                         },

@@ -45,8 +45,8 @@ class _SelectAuthPageState extends State<SelectAuthPage> {
                       child: CustomButtons(
                         onPressed: () {
                           Get.to(
-                            RegisterPage(),
-                            duration: Duration(milliseconds: 600),
+                            () => const RegisterPage(),
+                            duration: const Duration(milliseconds: 600),
                             transition: Transition.fade,
                           );
                         },
@@ -62,8 +62,8 @@ class _SelectAuthPageState extends State<SelectAuthPage> {
                       child: CustomButtons(
                         onPressed: () {
                           Get.to(
-                            LoginPage(),
-                            duration: Duration(milliseconds: 600),
+                            () => const LoginPage(),
+                            duration: const Duration(milliseconds: 600),
                             transition: Transition.fade,
                           );
                         },

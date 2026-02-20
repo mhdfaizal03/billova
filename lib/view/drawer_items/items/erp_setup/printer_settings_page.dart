@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 
 class PrinterSettingsPage extends StatefulWidget {
   const PrinterSettingsPage({super.key});
@@ -104,7 +105,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
       ),
       body: CurveScreen(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? ShimmerHelper.buildFormShimmer(context)
             : Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 800),

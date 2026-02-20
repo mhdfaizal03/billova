@@ -1,19 +1,19 @@
 import 'dart:async';
 
-import 'package:billova/main.dart';
+import 'package:billova/controllers/auth_provider.dart';
 import 'package:billova/models/model/auth_models/signup_request.dart';
-import 'package:billova/models/services/auth_service.dart';
+import 'package:billova/utils/constants/colors.dart';
+import 'package:billova/utils/constants/sizes.dart';
+import 'package:billova/utils/widgets/constrained_box.dart';
+import 'package:billova/utils/widgets/custom_back_button.dart';
+import 'package:billova/utils/widgets/custom_buttons.dart';
 import 'package:billova/utils/widgets/custom_field.dart';
 import 'package:billova/utils/widgets/custom_snackbar.dart';
 import 'package:billova/view/auth/confirm_otp_page.dart';
 import 'package:billova/view/privacy/terms_and_conditions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:billova/utils/constants/colors.dart';
-import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/widgets/constrained_box.dart';
-import 'package:billova/utils/widgets/custom_back_button.dart';
-import 'package:billova/utils/widgets/custom_buttons.dart';
+import 'package:provider/provider.dart';
 
 /// ---------------- COUNTRIES ----------------
 
@@ -170,54 +170,57 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!_formKey.currentState!.validate() ||
         _selectedCountry == null ||
         !isAgree) {
+      if (!isAgree) {
+        CustomSnackBar.show(
+          color: AppColors().browcolor,
+          context: context,
+          message: 'Please agree to Terms & Conditions',
+        );
+      }
       return;
     }
 
     setState(() => isSigningUp = true);
 
-    final response = await AuthService.signUp(
-      SignupRequest(
-        dealerCode: dealerCodeCtr.text.trim(),
-        email: emailCtr.text.trim(),
-        password: passwordCtr.text.trim(),
-        confirmPassword: confirmCtr.text.trim(),
-        companyName: companyNameCtr.text.trim(),
-        phoneNumber: phoneCtr.text.trim(),
-        country: _selectedCountry!.trim(),
-      ),
-    );
-
-    if (!mounted) return;
-    setState(() => isSigningUp = false);
-
-    /// ✅ BACKEND CONFIRMS OTP SENT
-    if (response.message.toLowerCase().contains('verification code')) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ConfirmOtpPage(phoneNumber: phoneCtr.text.trim()),
+    try {
+      final response = await context.read<AuthProvider>().signUp(
+        SignupRequest(
+          dealerCode: dealerCodeCtr.text.trim(),
+          email: emailCtr.text.trim(),
+          password: passwordCtr.text.trim(),
+          confirmPassword: confirmCtr.text.trim(),
+          companyName: companyNameCtr.text.trim(),
+          phoneNumber: phoneCtr.text.trim(),
+          country: _selectedCountry!.trim(),
         ),
       );
-    } else {
-      CustomSnackBar.show(
-        color: AppColors().browcolor,
-        context: context,
-        message: response.message,
-      );
-      // ScaffoldMessenger.of(
-      //   context,
-      // ).showSnackBar(
-      //   SnackBar(
-      //     content: Text(
-      //       response.message,
-      //     ),
-      //   ),
-      // );
+
+      if (!mounted) return;
+
+      /// ✅ BACKEND CONFIRMS OTP SENT
+      if (response.success ||
+          response.message.toLowerCase().contains('verification code')) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ConfirmOtpPage(phoneNumber: phoneCtr.text.trim()),
+          ),
+        );
+      } else {
+        CustomSnackBar.show(
+          color: AppColors().browcolor,
+          context: context,
+          message: response.message,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSigningUp = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context).size;
     IconData icon = pass ? Icons.visibility : Icons.visibility_off;
     IconData confirmIcon = confirmpass
         ? Icons.visibility

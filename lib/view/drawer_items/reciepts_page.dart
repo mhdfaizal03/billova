@@ -7,6 +7,7 @@ import 'package:billova/utils/widgets/custom_field.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:billova/utils/widgets/responsive_helper.dart';
+import 'package:billova/utils/widgets/shimmer_helper.dart';
 
 class RecieptsPage extends StatefulWidget {
   const RecieptsPage({super.key});
@@ -78,7 +79,13 @@ class _RecieptsPageState extends State<RecieptsPage> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? ShimmerHelper.buildGridShimmer(
+                      itemCount: 8,
+                      crossAxisCount: ResponsiveHelper.isMobile(context)
+                          ? 1
+                          : 2,
+                      itemHeight: 100,
+                    )
                   : _filteredOrders.isEmpty
                   ? const Center(child: Text("No matching receipts found"))
                   : GridView.builder(

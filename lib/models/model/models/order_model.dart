@@ -3,7 +3,7 @@ import 'package:billova/models/model/models/ticket_item_model.dart';
 class OrderModel {
   final String id;
   final List<TicketItem> items;
-  final int total;
+  final double total; // Changed from int to double
   final DateTime dateTime;
 
   OrderModel({
@@ -25,7 +25,7 @@ class OrderModel {
     items: (json['items'] as List)
         .map((e) => TicketItem.fromJson(Map<String, dynamic>.from(e)))
         .toList(),
-    total: json['total'],
+    total: (json['total'] ?? 0).toDouble(), // Ensure double
     dateTime: DateTime.parse(json['dateTime']),
   );
 }

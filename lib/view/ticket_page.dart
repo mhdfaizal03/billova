@@ -32,7 +32,7 @@ class _TicketPageState extends State<TicketPage> {
     items = widget.items.map((e) => e.copy()).toList();
   }
 
-  int get totalAmount => items.fold(0, (sum, item) => sum + item.total);
+  double get totalAmount => items.fold(0, (sum, item) => sum + item.total);
 
   void _increaseQty(int index) {
     setState(() => items[index].quantity++);
@@ -82,280 +82,295 @@ class _TicketPageState extends State<TicketPage> {
   Widget build(BuildContext context) {
     final primary = AppColors().browcolor;
 
-    return Scaffold(
-      backgroundColor: primary,
-      appBar: AppBar(
-        leading: CustomAppBarBack(onTap: () => Get.back(result: items)),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        Get.back(result: items);
+      },
+      child: Scaffold(
         backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          "Items",
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _confirmCancelOrder,
-            child: const Text(
-              'Cancel Order',
-              style: TextStyle(color: Colors.white),
-            ),
+        appBar: AppBar(
+          leading: CustomAppBarBack(onTap: () => Get.back(result: items)),
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          title: const Text(
+            "Items",
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
-        ],
-      ),
-      body: CurveScreen(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Column(
-              children: [
-                Expanded(
-                  child: items.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No items added',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
+          actions: [
+            TextButton(
+              onPressed: _confirmCancelOrder,
+              child: const Text(
+                'Cancel Order',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        body: CurveScreen(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: items.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No items added',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.only(top: 8),
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) => const Divider(
-                            height: 10,
-                            endIndent: 20,
-                            indent: 20,
-                            thickness: 0.8,
-                          ),
-                          itemBuilder: (_, i) {
-                            final item = items[i];
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.only(top: 8),
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) => const Divider(
+                              height: 10,
+                              endIndent: 20,
+                              indent: 20,
+                              thickness: 0.8,
+                            ),
+                            itemBuilder: (_, i) {
+                              final item = items[i];
 
-                            return Dismissible(
-                              key: ValueKey(
-                                '${item.productName}_${item.variantName}_${item.price}',
-                              ),
-                              direction: DismissDirection.endToStart,
-                              confirmDismiss: (_) async {
-                                return await _showDeleteConfirm(context, item);
-                              },
-                              background: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
+                              return Dismissible(
+                                key: ValueKey(
+                                  '${item.productName}_${item.variantName}_${item.price}',
                                 ),
-                                alignment: Alignment.centerRight,
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(.9),
-                                  borderRadius: BorderRadius.circular(0),
+                                direction: DismissDirection.endToStart,
+                                confirmDismiss: (_) async {
+                                  return await _showDeleteConfirm(
+                                    context,
+                                    item,
+                                  );
+                                },
+                                background: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  alignment: Alignment.centerRight,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(.9),
+                                    borderRadius: BorderRadius.circular(0),
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.white,
+                                    size: 26,
+                                  ),
                                 ),
-                                child: const Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
-                              ),
-                              onDismissed: (_) {
-                                setState(() {
-                                  items.removeAt(i);
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.variantName != null
-                                                ? '${item.productName} (${item.variantName})'
-                                                : item.productName,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
+                                onDismissed: (_) {
+                                  setState(() {
+                                    items.removeAt(i);
+                                  });
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.variantName != null
+                                                  ? '${item.productName} (${item.variantName})'
+                                                  : item.productName,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '₹${item.price}',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.grey[600],
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '₹${item.price.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey[600],
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      height: 34,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: primary.withOpacity(.3),
+                                          ],
                                         ),
                                       ),
-                                      child: Row(
-                                        children: [
-                                          _qtyButton(
-                                            icon: Icons.remove,
-                                            onTap: () => _decreaseQty(i),
+                                      Container(
+                                        height: 34,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
                                           ),
-                                          QtyEditable(
-                                            value: item.quantity,
-                                            onChanged: (v) {
-                                              setState(() => item.quantity = v);
-                                            },
+                                          border: Border.all(
+                                            color: primary.withOpacity(.3),
                                           ),
-                                          _qtyButton(
-                                            icon: Icons.add,
-                                            onTap: () => _increaseQty(i),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    sw10,
-                                    SizedBox(
-                                      width: 60,
-                                      child: Text(
-                                        '₹${item.total}',
-                                        textAlign: TextAlign.end,
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            _qtyButton(
+                                              icon: Icons.remove,
+                                              onTap: () => _decreaseQty(i),
+                                            ),
+                                            QtyEditable(
+                                              value: item.quantity,
+                                              onChanged: (v) {
+                                                setState(
+                                                  () => item.quantity = v,
+                                                );
+                                              },
+                                            ),
+                                            _qtyButton(
+                                              icon: Icons.add,
+                                              onTap: () => _increaseQty(i),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      sw10,
+                                      SizedBox(
+                                        width: 60,
+                                        child: Text(
+                                          '₹${item.total}',
+                                          textAlign: TextAlign.end,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    decoration: BoxDecoration(
+                      color: AppColors().creamcolor,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, -3),
                         ),
-                ),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                  decoration: BoxDecoration(
-                    color: AppColors().creamcolor,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, -3),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Subtotal',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          Text(
-                            '₹${items.fold(0, (s, i) => s + i.subtotal)}',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Tax',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          Text(
-                            '₹${items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'TOTAL',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '₹$totalAmount',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      sh10,
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 44,
-                              child: CustomButtons(
-                                onPressed: items.isEmpty
-                                    ? null
-                                    : () {
-                                        Get.back(result: items);
-                                      },
-                                text: const Text('Save'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Subtotal',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey,
                               ),
                             ),
-                          ),
-                          sw10,
-                          Expanded(
-                            child: SizedBox(
-                              height: 44,
-                              child: CustomButtons(
-                                onPressed: items.isEmpty
-                                    ? null
-                                    : _showReceiptPreview,
-                                text: const Text('Charge'),
+                            Text(
+                              '₹${items.fold(0.0, (s, i) => s + i.subtotal).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Tax',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            Text(
+                              '₹${items.fold(0.0, (s, i) => s + i.taxAmount).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'TOTAL',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '₹${totalAmount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        sh10,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 44,
+                                child: CustomButtons(
+                                  onPressed: items.isEmpty
+                                      ? null
+                                      : () {
+                                          Get.back(result: items);
+                                        },
+                                  text: const Text('Save'),
+                                ),
+                              ),
+                            ),
+                            sw10,
+                            Expanded(
+                              child: SizedBox(
+                                height: 44,
+                                child: CustomButtons(
+                                  onPressed: items.isEmpty
+                                      ? null
+                                      : _showReceiptPreview,
+                                  text: const Text('Charge'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -411,7 +426,7 @@ class _TicketPageState extends State<TicketPage> {
                         ),
                       ),
                       Text(
-                        "₹${item.total}",
+                        "₹${item.total.toStringAsFixed(2)}",
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -423,7 +438,9 @@ class _TicketPageState extends State<TicketPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text("Subtotal"),
-                  Text("₹${items.fold(0, (s, i) => s + i.subtotal)}"),
+                  Text(
+                    "₹${items.fold(0.0, (s, i) => s + i.subtotal).toStringAsFixed(2)}",
+                  ),
                 ],
               ),
               Row(
@@ -444,7 +461,7 @@ class _TicketPageState extends State<TicketPage> {
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                   ),
                   Text(
-                    "₹$totalAmount",
+                    "₹${totalAmount.toStringAsFixed(2)}",
                     style: const TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 18,

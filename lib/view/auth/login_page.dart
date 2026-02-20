@@ -1,9 +1,6 @@
-import 'package:billova/main.dart';
-import 'package:billova/models/model/auth_models/login_request.dart';
-import 'package:billova/models/services/auth_service.dart';
+import 'package:billova/controllers/auth_provider.dart';
 import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/constants/sizes.dart';
-import 'package:billova/utils/local_Storage/token_storage.dart';
 import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
 import 'package:billova/utils/widgets/custom_buttons.dart';
@@ -14,6 +11,7 @@ import 'package:billova/view/auth/select_store_page.dart';
 import 'package:billova/view/home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:provider/provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,59 +39,62 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+
+    // UI Loading state, though Provider handles it internally, local state is good for controlling just this screen
     if (isLoggingIn) return;
 
     setState(() => isLoggingIn = true);
 
-    final response = await AuthService.login(
-      LoginRequest(
-        email: emailCtr.text.trim(),
-        password: passwordCtr.text.trim(),
-      ),
-    );
-
-    if (!mounted) return;
-    setState(() => isLoggingIn = false);
-
-    /// 🔹 CASE 1: MULTIPLE STORES FOUND
-    if (response.multipleStores && response.stores.isNotEmpty) {
-      Get.offAll(
-        () => SelectStorePage(
-          stores: response.stores,
-          email: emailCtr.text.trim(),
-          password: passwordCtr.text.trim(),
-        ),
-        transition: Transition.fadeIn,
+    try {
+      final response = await context.read<AuthProvider>().login(
+        emailCtr.text.trim(),
+        passwordCtr.text.trim(),
       );
-      return;
-    }
 
-    /// 🔹 CASE 2: SINGLE STORE / NORMAL LOGIN
-    if (response.token != null && response.token!.isNotEmpty) {
-      await TokenStorage.saveToken(response.token!);
       if (!mounted) return;
 
-      Get.offAll(() => HomeScreen(), transition: Transition.fadeIn);
+      /// 🔹 CASE 1: MULTIPLE STORES FOUND
+      if (response.multipleStores && response.stores.isNotEmpty) {
+        Get.offAll(
+          () => SelectStorePage(
+            stores: response.stores,
+            email: emailCtr.text.trim(),
+            password: passwordCtr.text.trim(),
+          ),
+          transition: Transition.fadeIn,
+        );
+        return;
+      }
 
-      CustomSnackBar.show(
-        color: AppColors().browcolor,
-        context: context,
-        message: response.message,
-      );
-    } else {
-      if (!mounted) return;
-      CustomSnackBar.show(
-        color: AppColors().browcolor,
-        context: context,
-        message: response.message.isNotEmpty
-            ? response.message
-            : 'Login failed',
-      );
+      /// 🔹 CASE 2: SINGLE STORE / NORMAL LOGIN
+      if (response.success ||
+          (response.token != null && response.token!.isNotEmpty)) {
+        // Token is already saved by AuthProvider
+
+        Get.offAll(() => HomeScreen(), transition: Transition.fadeIn);
+
+        CustomSnackBar.show(
+          color: AppColors().browcolor,
+          context: context,
+          message: response.message,
+        );
+      } else {
+        CustomSnackBar.show(
+          color: AppColors().browcolor,
+          context: context,
+          message: response.message.isNotEmpty
+              ? response.message
+              : 'Login failed',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoggingIn = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context).size;
     IconData icon = pass ? Icons.visibility : Icons.visibility_off;
 
     return Scaffold(

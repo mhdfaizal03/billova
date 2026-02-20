@@ -1,7 +1,7 @@
 class TicketItem {
   final String productName;
   final String? variantName;
-  final int price;
+  final double price; // Changed from int to double
   int quantity;
   final String? taxId;
   final double taxRate;
@@ -15,12 +15,11 @@ class TicketItem {
     this.taxRate = 0.0,
   });
 
-  int get subtotal => price * quantity;
+  double get subtotal => price * quantity;
   double get taxAmount => (subtotal * taxRate) / 100;
   double get totalWithTax => subtotal + taxAmount;
 
-  // For backward compatibility mostly, but ticket total usually means pay amount
-  int get total => totalWithTax.round();
+  double get total => totalWithTax; // Changed from int round()
 
   TicketItem copy() {
     return TicketItem(
@@ -45,8 +44,8 @@ class TicketItem {
   factory TicketItem.fromJson(Map<String, dynamic> json) => TicketItem(
     productName: json['productName'],
     variantName: json['variantName'],
-    price: json['price'],
-    quantity: json['quantity'],
+    price: (json['price'] ?? 0).toDouble(), // Ensure double
+    quantity: json['quantity'] ?? 1,
     taxId: json['taxId'],
     taxRate: (json['taxRate'] ?? 0).toDouble(),
   );

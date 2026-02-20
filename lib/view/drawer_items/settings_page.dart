@@ -19,13 +19,13 @@ class _SettingsPageState extends State<SettingsPage> {
       "icon": Icons.business_rounded,
       "title": "Billing Details",
       "subtitle": "Store name, address, GST, and receipt messages",
-      "page": const BillingDetailsPage(),
+      "page": () => const BillingDetailsPage(),
     },
     {
       "icon": Icons.print_rounded,
       "title": "Printer Settings",
       "subtitle": "Printer IP, port, and paper size",
-      "page": const PrinterSettingsPage(),
+      "page": () => const PrinterSettingsPage(),
     },
   ];
 

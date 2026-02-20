@@ -2,7 +2,7 @@ import 'package:billova/utils/constants/colors.dart';
 import 'package:billova/utils/widgets/constrained_box.dart';
 import 'package:billova/utils/widgets/curve_screen.dart';
 import 'package:billova/utils/widgets/custom_back_button.dart';
-import 'package:billova/view/drawer_items/items/category/all_categories_page.dart';
+import 'package:billova/view/category/category_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -21,17 +21,17 @@ class _ItemsPageState extends State<ItemsPage> {
     {
       "icon": Icons.shopping_bag,
       "title": "Products",
-      "page": const AllProductsPage(),
+      "page": () => const AllProductsPage(),
     },
     {
       "icon": Icons.category,
       "title": "Categories",
-      "page": const AllCategoriesPage(),
+      "page": () => const CategoryListScreen(),
     },
     {
       "icon": Icons.attach_money,
       "title": "Taxes",
-      "page": const AllTaxesPage(),
+      "page": () => const AllTaxesPage(),
     },
   ];
 
@@ -43,8 +43,8 @@ class _ItemsPageState extends State<ItemsPage> {
         leading: CustomAppBarBack(),
         backgroundColor: AppColors().browcolor,
         foregroundColor: Colors.white,
-        title: Text("Items"),
-        actions: [IconButton(onPressed: () {}, icon: Icon(Icons.search))],
+        title: const Text("Items"),
+        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
       ),
       body: CurveScreen(
         child: ConstrainBox(
